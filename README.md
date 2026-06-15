@@ -26,7 +26,7 @@ That's the whole quickstart. The embed renders as a styled "Load video" placehol
 ## What it does
 
 - **Per-embed gate.** Each `<div class="consent-embed">` is swapped for an iframe only on user click. Until then, no request goes to the third-party host.
-- **Optional global modal.** Auto-shows until the visitor explicitly opts in to all providers at once. Declining or dismissing (Esc / X / backdrop / "Not now") writes a `sessionStorage` flag so the modal stays out of the way for the rest of the visit, but disappears the moment the tab closes — the modal returns on a fresh visit. The only choice that survives the tab is the explicit "allow all."
+- **Optional global modal.** Auto-shows until the visitor explicitly opts in to all providers at once. Two-tier dismissal: Esc / X / backdrop writes nothing (the modal can return on the next nav — the visitor didn't commit to anything), while the explicit "Not now" button writes a `sessionStorage` flag so the modal stays out of the way for the rest of the visit. Both clear when the tab closes. The only choice that survives the tab is the explicit "allow all."
 - **Per-provider remember.** Each gate has an opt-in "remember this provider" checkbox. Persisted in `localStorage`.
 - **Deferred Google Fonts.** Pass one or more Google Fonts URLs and the plugin injects the `<link rel="stylesheet">` only after consent. Same for any other deferred work via the `onConsent` callback.
 - **i18n built in.** English and German shipped; add any language by passing a `strings.<lang>` table.
@@ -280,7 +280,7 @@ The dominant pattern for "consent" on the modern web is a banner that closes onc
 The pattern this module enforces:
 
 1. **No third-party request until explicit consent.** The iframe URL is in `data-embed`, not `<iframe src>`. The DOM literally cannot ping YouTube before the click.
-2. **The only durable decision is "yes."** Declining writes a tab-scoped flag (so the modal doesn't pester the visitor for the rest of the visit) but nothing that survives the tab — a fresh visit prompts again. No dark-pattern "I'll just dismiss this once and it's gone forever."
+2. **The only durable decision is "yes."** The explicit "Not now" button writes a tab-scoped flag (so the modal doesn't pester the visitor for the rest of the visit) but nothing that survives the tab — a fresh visit prompts again. Closing the modal via Esc / X / backdrop is treated as no decision at all and writes nothing. No dark-pattern "I'll just dismiss this once and it's gone forever."
 3. **Per-embed control is always available.** Even after declining, each embed has its own gate with its own opt-in. You can permit YouTube but not Google Maps without finding a settings panel.
 
 It's also small. One file, no dependencies, no build step. Vendor it if you don't like npm.

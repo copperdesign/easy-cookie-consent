@@ -1,4 +1,4 @@
-/*! easy-cookie-consent — v0.3.1 - 2026-06-15
+/*! easy-cookie-consent — v0.3.2 - 2026-06-15
  * https://copperdesign.github.io/
  *
  * Copyright (c) 2026 Christian Fillies;
@@ -19,14 +19,17 @@
  *      "remember" checkbox.
  *
  *   2. Global modal. An optional editorial dialog that offers one
- *      place to opt in to all providers at once. Declining (or
- *      dismissing via Esc / X / backdrop) marks the choice for the
- *      current browser tab via sessionStorage — the modal stays out
- *      of the way for the rest of the visit, but a fresh tab or a
- *      return after the tab is closed will show it again. Only an
- *      explicit global opt-in is durable across visits. Per-embed
- *      gates remain available either way. The modal is non-blocking
- *      — floats over content with a semi-transparent backdrop.
+ *      place to opt in to all providers at once. Dismissing it via
+ *      Esc, the X, or the backdrop writes nothing — the visitor
+ *      hasn't committed to anything, so the modal can return on the
+ *      next navigation. The explicit "Not now" button is the real
+ *      decline: it writes a tab-scoped flag to sessionStorage so the
+ *      modal stays out of the way for the rest of the visit, but a
+ *      fresh tab or a return after the tab is closed will show it
+ *      again. Only an explicit global opt-in is durable across
+ *      visits. Per-embed gates remain available regardless. The
+ *      modal is non-blocking — floats over content with a
+ *      semi-transparent backdrop.
  *
  * @docs README.md
  */
@@ -694,25 +697,25 @@ export default function easyCookieConsent(userOptions = {}) {
     modalLastFocused = document.activeElement;
     optIn.focus();
 
-    // Esc / X / backdrop are all read as "not now" — same as the explicit
-    // opt-out button. Anything else would mean the visitor presses Esc to
-    // get rid of the modal and finds it again on the very next page,
-    // which is the exact annoyance the session-scoped decline exists to
-    // prevent. Only the primary opt-in button writes the durable global
-    // consent.
-    const dismiss = () => { optOutAll(); closeModal(); };
-
+    // Two-tier dismissal:
+    //   • Esc / X / backdrop just close the modal — the visitor isn't
+    //     committing to anything, just hiding the dialog. Nothing is
+    //     written, so the modal can return on the next navigation.
+    //   • The explicit "Not now" button is a real decision — it writes
+    //     the session decline so the modal stays out of the way for the
+    //     rest of the visit.
+    // Only the primary opt-in button writes the durable global consent.
     modalKeyHandler = (e) => {
-      if (e.key === "Escape") dismiss();
+      if (e.key === "Escape") closeModal();
     };
     document.addEventListener("keydown", modalKeyHandler);
 
-    closeBtn.addEventListener("click", dismiss);
+    closeBtn.addEventListener("click", closeModal);
     backdrop.addEventListener("click", (e) => {
-      if (e.target === backdrop) dismiss();
+      if (e.target === backdrop) closeModal();
     });
     optIn.addEventListener("click", () => { optInAll(); closeModal(); });
-    optOut.addEventListener("click", dismiss);
+    optOut.addEventListener("click", () => { optOutAll(); closeModal(); });
   }
 
   function closeModal() {
