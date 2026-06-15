@@ -124,6 +124,8 @@ const DEFAULT_OPTIONS = {
     default: 300,      // YouTube-class video
     soundcloud: 100,   // SoundCloud's short player strip
     gmaps: 470,        // full-bleed map band
+    gsheets: 500,      // published Google Sheet (table-of-content height)
+    gcal: 600,         // Google Calendar's default embed height
     betterplace: 320,  // donation widget
     gooding: 250,      // banner widget
     jotform: 800,      // form embeds are typically tall
@@ -167,6 +169,25 @@ const DEFAULT_OPTIONS = {
       iframeAttrs: {
         frameborder: "0",
         allowfullscreen: "",
+        style: "border:0",
+      },
+    },
+    gsheets: {
+      label: "Google Sheets",
+      operator: "Google LLC, USA",
+      iframeAttrs: {
+        frameborder: "0",
+        // Sheets' published-to-the-web iframe ships its own scrollbars; let
+        // them through rather than constraining at the wrapper level.
+        scrolling: "auto",
+      },
+    },
+    gcal: {
+      label: "Google Calendar",
+      operator: "Google LLC, USA",
+      iframeAttrs: {
+        frameborder: "0",
+        scrolling: "no",
         style: "border:0",
       },
     },
@@ -229,6 +250,8 @@ const DEFAULT_OPTIONS = {
           vimeo: "Load video",
           soundcloud: "Load audio",
           gmaps: "Load map",
+          gsheets: "Load spreadsheet",
+          gcal: "Load calendar",
           betterplace: "Load donation form",
           gooding: "Load donation widget",
           jotform: "Load form",
@@ -259,6 +282,8 @@ const DEFAULT_OPTIONS = {
           vimeo: "Video laden",
           soundcloud: "Audio laden",
           gmaps: "Karte laden",
+          gsheets: "Tabelle laden",
+          gcal: "Kalender laden",
           betterplace: "Spendenformular laden",
           gooding: "Spenden-Widget laden",
           jotform: "Formular laden",

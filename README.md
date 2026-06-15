@@ -50,7 +50,7 @@ Each embed is one element on the page:
      data-embed="https://www.youtube.com/embed/<ID>?rel=0"></div>
 ```
 
-- `data-provider` — one of the built-in providers (`youtube`, `vimeo`, `soundcloud`, `gmaps`), or any provider you've added via `options.providers`.
+- `data-provider` — one of the built-in providers (`youtube`, `vimeo`, `soundcloud`, `gmaps`, `gsheets`, `gcal`), or any provider you've added via `options.providers`.
 - `data-embed` — the iframe URL to load on click. Whatever you'd normally put in `<iframe src>`.
 
 The gate handles the rest. The placeholder occupies the same vertical slot the iframe will take, so the page doesn't reflow on click.
@@ -89,7 +89,7 @@ Returns a controller object:
 | `fontStack` | `'"Helvetica Neue", Helvetica, Arial, sans-serif'` | CSS `font-family` applied to both surfaces. Override for a typographic match with your host page. |
 | `onConsent` | `null` | Callback fired once when global consent becomes true — modal opt-in click, `optInAll()` call, or boot-time restoration of a prior opt-in. Use for analytics, embedded forms, calendar feeds, anything that would transmit visitor data on load. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
 | `googleFonts` | `null` | A single Google Fonts stylesheet URL, or an array of URLs. After consent, the plugin injects each as `<link rel="stylesheet">` and a single preconnect to `fonts.gstatic.com`. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
-| `providers` | (youtube, vimeo, soundcloud, gmaps) | Map of provider definitions. Pass entries to add or override. See below. |
+| `providers` | (youtube, vimeo, soundcloud, gmaps, gsheets, gcal) | Map of provider definitions. Pass entries to add or override. See below. |
 | `strings` | (`en`, `de`) | Map of localized strings. Pass entries to add or override. See below. |
 
 ### Color tokens
