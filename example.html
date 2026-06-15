@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>easy-cookie-consent — example</title>
+	<style>
+		body {
+			margin: 0;
+			font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+			color: #1a1a1a;
+			background: #fafafa;
+			-webkit-font-smoothing: antialiased;
+		}
+		.page {
+			max-width: 44rem;
+			margin: 0 auto;
+			padding: 4rem 2rem 6rem;
+		}
+		h1 {
+			font-size: 2rem;
+			letter-spacing: -0.02em;
+			font-weight: 600;
+			margin: 0 0 0.5rem;
+		}
+		.lede {
+			color: #666;
+			line-height: 1.5;
+			margin: 0 0 3rem;
+		}
+		.section {
+			margin: 3rem 0;
+		}
+		.section h2 {
+			font-size: 0.85rem;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+			color: #666;
+			font-weight: 600;
+			margin: 0 0 1rem;
+		}
+		.controls {
+			display: flex; gap: 0.75rem; flex-wrap: wrap;
+		}
+		.controls button {
+			appearance: none;
+			border: 1px solid #111;
+			background: transparent;
+			color: #111;
+			font: inherit;
+			font-size: 0.9rem;
+			padding: 0.55rem 1.25rem;
+			border-radius: 999px;
+			cursor: pointer;
+			letter-spacing: 0.01em;
+			transition: background-color 150ms ease-out, color 150ms ease-out;
+		}
+		.controls button:hover {
+			background: #111; color: #fff;
+		}
+		footer {
+			color: #999;
+			font-size: 0.85rem;
+			padding: 2rem;
+			text-align: center;
+		}
+		footer a { color: inherit; }
+	</style>
+</head>
+<body>
+
+<main class="page">
+	<h1>easy-cookie-consent</h1>
+	<p class="lede">
+		A consent gate for third-party embeds. The YouTube iframe below is
+		<strong>not</strong> in the DOM until you click. On first load, a
+		modal asks whether to allow all embeds globally.
+	</p>
+
+	<div class="section">
+		<h2>YouTube embed</h2>
+		<div class="consent-embed"
+		     data-provider="youtube"
+		     data-embed="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0"></div>
+	</div>
+
+	<div class="section">
+		<h2>Google Maps embed</h2>
+		<div class="consent-embed consent-embed--gmaps"
+		     data-provider="gmaps"
+		     data-embed="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d310717.1567422266!2d9.987643611337976!3d53.55502340000001!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47b161837e1813b9%3A0x4263df27bd63aa0!2sHamburg%2C%20Germany!5e0!3m2!1sen!2sde!4v1717181718000"></div>
+	</div>
+
+	<div class="section">
+		<h2>Controls</h2>
+		<div class="controls">
+			<button id="show">Open modal</button>
+			<button id="reset">Reset consent</button>
+		</div>
+		<p style="color:#666; font-size:0.85rem; margin-top:1rem;">
+			"Reset consent" wipes <code>localStorage</code> for this origin and
+			reloads the page — useful for testing the modal flow without opening
+			a private window every time.
+		</p>
+	</div>
+</main>
+
+<footer>
+	easy-cookie-consent — <a href="https://github.com/copperdesign/easy-cookie-consent">github.com/copperdesign/easy-cookie-consent</a>
+</footer>
+
+<script type="module">
+	import easyCookieConsent from './index.js';
+
+	// Bind the controller to window so the buttons below can reach it
+	// without import scope juggling. In a real site you'd typically keep
+	// it local — only attach to window when you need inline onclick=
+	// revoke links from a privacy page.
+	window.consent = easyCookieConsent({
+		privacyHref: '#privacy',
+	});
+
+	document.getElementById('show').addEventListener('click', () => consent.show());
+	document.getElementById('reset').addEventListener('click', () => {
+		consent.reset();
+		location.reload();
+	});
+</script>
+
+</body>
+</html>

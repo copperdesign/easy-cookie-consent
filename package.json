@@ -1,0 +1,43 @@
+{
+  "name": "@copperdesign/easy-cookie-consent",
+  "version": "0.1.0",
+  "description": "Click-to-load consent gate for third-party embeds (YouTube, Vimeo, SoundCloud, Google Maps) plus an optional global consent modal. Zero dependencies, single file, multi-language.",
+  "type": "module",
+  "main": "index.js",
+  "module": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "gdpr",
+    "consent",
+    "cookie-consent",
+    "privacy",
+    "embed",
+    "youtube",
+    "vimeo",
+    "soundcloud",
+    "google-maps",
+    "click-to-load",
+    "i18n"
+  ],
+  "author": "Christian Fillies <christian@manolab.com> (https://christianfillies.com)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/copperdesign/easy-cookie-consent.git"
+  },
+  "homepage": "https://github.com/copperdesign/easy-cookie-consent#readme",
+  "bugs": {
+    "url": "https://github.com/copperdesign/easy-cookie-consent/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

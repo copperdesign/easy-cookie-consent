@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.DS_Store
+.idea/
+.vscode/
+.env
+.env.local
+
+# Local Claude Code workspace — agent notes, transcripts, scratch.
+.claude/

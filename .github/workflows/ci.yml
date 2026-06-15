@@ -1,0 +1,65 @@
+# Smoke-test the module on every push / PR.
+#
+# This is a browser ES module with zero runtime dependencies — it can't be
+# imported in plain Node because it touches DOM APIs (document, localStorage,
+# etc.). The CI's job is therefore narrow: confirm the source still parses
+# as a valid ES module, and that the package metadata is internally
+# consistent. Catches the usual drive-by regressions: stray syntax error,
+# unbalanced template literal, broken `exports` map, etc.
+#
+# No `npm install` step — the package declares no dependencies. Matrix runs
+# the LTS line on the off chance a future syntax addition trips an older
+# parser.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    name: smoke (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: parse check
+        run: node --check index.js
+
+      - name: package.json is valid JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
+
+      - name: exports map resolves
+        run: |
+          # The "exports" entry point must point at a file that exists.
+          node -e "
+            const pkg = require('./package.json');
+            const fs = require('fs');
+            const entry = typeof pkg.exports === 'string'
+              ? pkg.exports
+              : pkg.exports['.'];
+            if (!fs.existsSync(entry.replace(/^\.\//, ''))) {
+              console.error('exports entry missing on disk:', entry);
+              process.exit(1);
+            }
+          "
+
+      - name: preserve header is intact
+        run: |
+          # The /*! ... */ banner is the license notice that survives
+          # minification. If it's gone, something stripped it accidentally.
+          head -n 1 index.js | grep -q '^/\*!' || {
+            echo "preserve header missing from index.js" >&2
+            exit 1
+          }
