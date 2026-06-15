@@ -1,4 +1,4 @@
-/*! easy-cookie-consent — v0.3.2 - 2026-06-15
+/*! easy-cookie-consent — v0.3.3 - 2026-06-15
  * https://copperdesign.github.io/
  *
  * Copyright (c) 2026 Christian Fillies;
@@ -337,6 +337,7 @@ const KEY_DECLINED = "declined";
  *   reset: Function,
  *   teardown: Function,
  *   hasConsent: (providerId?: string) => boolean,
+ *   gate: (container: Element, opts: { provider: string, onLoad: (container: Element) => void }) => void,
  * }} Controller API. Bind to `window` if you want inline
  *    `onclick="…"` revoke links (see README → "Revoke link").
  *
@@ -410,11 +411,17 @@ export default function easyCookieConsent(userOptions = {}) {
   }
   function t() { return opts.strings[resolveLang()]; }
 
-  // --- Per-embed placeholder. Minimal DOM on purpose: one labelled block,
-  // one button, one optional "remember" checkbox. No fake play button, no
-  // remote-fetched thumbnail (that would itself be a third-party request,
+  // --- Per-embed placeholder body. Minimal DOM on purpose: one labelled
+  // block, one button, one optional "remember" checkbox. No fake play button,
+  // no remote-fetched thumbnail (that would itself be a third-party request,
   // defeating the point of the gate).
-  function renderPlaceholder(node, providerId, provider) {
+  //
+  // Returns the body element. Callers decide where to mount it and what
+  // happens after the visitor clicks "load" — the iframe-swap flow uses this
+  // to drop in an iframe; the imperative `gate()` API uses it to hand control
+  // back to the host page so it can boot a richer integration (YouTube
+  // IFrame API, embedded form, calendar feed) instead of a static iframe.
+  function buildPlaceholderBody(providerId, provider, onConfirm) {
     const s = t().placeholder;
     const body = document.createElement("div");
     body.className = "consent-embed__body";
@@ -443,12 +450,17 @@ export default function easyCookieConsent(userOptions = {}) {
     remember.append(checkbox, " " + s.remember(provider.label));
 
     body.append(label, hint, button, remember);
-    node.replaceChildren(body);
 
     button.addEventListener("click", () => {
       if (checkbox.checked) storeWrite(providerId, "1");
-      swapInIframe(node, provider);
+      onConfirm();
     });
+    return body;
+  }
+
+  function renderPlaceholder(node, providerId, provider) {
+    const body = buildPlaceholderBody(providerId, provider, () => swapInIframe(node, provider));
+    node.replaceChildren(body);
   }
 
   // --- Swap the placeholder for the real iframe. The iframe is built
@@ -550,13 +562,18 @@ export default function easyCookieConsent(userOptions = {}) {
       .consent-embed--soundcloud .consent-embed__hint {
         flex-basis: 100%; order: 3; font-size: 0.8rem;
       }
-      /* Once loaded, the wrapper just holds the iframe — strip its framing
-         so the iframe fills the slot edge-to-edge. */
+      /* Once loaded, the wrapper just holds the iframe (or host-supplied
+         content from gate()) — strip its framing so the payload fills the
+         slot edge-to-edge. */
       .consent-embed--loaded { background: transparent; padding: 0; }
       .consent-embed--loaded iframe {
         display: block; width: 100%; height: 100%; border: 0;
       }
       .consent-embed--loaded.consent-embed--gmaps iframe { border-radius: 0; }
+      /* gate(): the host container owns sizing — drop the default fixed
+         height so the placeholder fills whatever box the host gave us
+         (a <dialog>, a flex slot, an aspect-ratio'd wrapper, …). */
+      .consent-embed--gated { height: 100%; }
 
       /* --- modal ------------------------------------------------------ */
       .consent-modal__backdrop {
@@ -828,6 +845,65 @@ export default function easyCookieConsent(userOptions = {}) {
     sessionWrite(KEY_DECLINED, "1");
   }
 
+  // --- Imperative gate. For cases where the post-consent action isn't
+  // "drop in an iframe" but "boot a richer integration the host page owns"
+  // — YouTube IFrame API for autoplay/loop/state callbacks, an embedded
+  // form's JS, a calendar widget that polls a feed. The plugin still
+  // handles the consent UI (same copy, same i18n, same "remember"
+  // checkbox, same per-provider storage key); only the render-on-consent
+  // step is delegated.
+  //
+  // Pre-granted consent path: `onLoad(container)` fires synchronously. No
+  // placeholder UI flashes. The container picks up `.consent-embed--loaded`
+  // so any custom CSS that targets the loaded state still applies.
+  //
+  // Unknown provider ids are accepted on purpose — a host page may want
+  // to scope storage under a custom key without registering a full
+  // provider entry. The label falls back to the id so the placeholder
+  // copy still renders something meaningful.
+  function gate(container, gateOpts) {
+    if (!container || typeof container.appendChild !== "function") {
+      throw new TypeError("gate(container, opts): `container` must be a DOM element");
+    }
+    if (!gateOpts || typeof gateOpts !== "object") {
+      throw new TypeError("gate(container, opts): `opts` is required");
+    }
+    const providerId = gateOpts.provider;
+    const onLoad = gateOpts.onLoad;
+    if (typeof providerId !== "string" || !providerId) {
+      throw new TypeError("gate(container, opts): `opts.provider` is required");
+    }
+    if (typeof onLoad !== "function") {
+      throw new TypeError("gate(container, opts): `opts.onLoad` must be a function");
+    }
+
+    injectStyles();
+
+    const provider = opts.providers[providerId] || {
+      label: providerId,
+      operator: providerId,
+    };
+
+    container.classList.add(
+      "consent-embed",
+      "consent-embed--" + providerId,
+      "consent-embed--gated",
+    );
+
+    if (hasConsent(providerId)) {
+      container.classList.add("consent-embed--loaded");
+      onLoad(container);
+      return;
+    }
+
+    const body = buildPlaceholderBody(providerId, provider, () => {
+      container.replaceChildren();
+      container.classList.add("consent-embed--loaded");
+      onLoad(container);
+    });
+    container.replaceChildren(body);
+  }
+
   function reset() {
     // Wipe all consent state. Used by a "revoke consent" link on the
     // privacy page. Iframes already rendered on the current page stay
@@ -886,6 +962,11 @@ export default function easyCookieConsent(userOptions = {}) {
     // or remembered this provider individually). Use the per-provider form
     // when gating a fetch / script load behind an inline CTA.
     hasConsent,
+    // Imperative consent gate. Use when the post-consent action is
+    // something richer than an iframe swap — boot the YouTube IFrame
+    // API, mount an embedded form, kick off a calendar feed. See
+    // README → "Imperative gate (custom render after consent)".
+    gate,
   };
 }
 

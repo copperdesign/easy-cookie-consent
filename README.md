@@ -73,6 +73,7 @@ Returns a controller object:
 | `consent.reset()` | Wipes **all** consent state (global plus every per-provider key). Use for a "revoke consent" link on the privacy page. Iframes already loaded on the current page stay loaded — a reload re-gates them. |
 | `consent.teardown()` | Removes injected styles and the modal node if open. Idempotent. Use in SPAs when the host element is being unmounted. |
 | `consent.hasConsent()` | Returns `true` if the visitor has granted global consent (durably, in `localStorage`). Use to gate code outside the plugin without poking at the storage key directly. |
+| `consent.gate(container, { provider, onLoad })` | Imperative consent gate. Mounts the same placeholder UI used by the iframe-swap flow into `container`, and on consent calls `onLoad(container)` instead of inserting an iframe. Use when the post-consent action is richer than dropping in `<iframe src="…">` — booting the YouTube IFrame API for autoplay/loop/state callbacks, mounting an embedded form's JS, kicking off a calendar widget. See [Imperative gate](#imperative-gate-custom-render-after-consent). |
 
 ## Options
 
@@ -81,8 +82,8 @@ Returns a controller object:
 | `privacyHref` | `'#privacy'` | The privacy-policy URL shown in the modal body and each per-embed hint. |
 | `language` | `null` | `null` = auto-detect from `<html lang>`. Pass an ISO code (`'en'`, `'de'`) to force. |
 | `fallbackLanguage` | `'en'` | Used when neither `language` nor `<html lang>` resolves to a built-in language. |
-| `showModal` | `true` | Whether the modal auto-shows on init. Set `false` to suppress per-page (e.g. on embed-free meta pages). Also respects the `noPromptAttribute` body marker. |
-| `noPromptAttribute` | `'data-cookie-consent-no-prompt'` | Body attribute that suppresses the modal even when `showModal: true`. Cheaper than passing different options per page. |
+| `showModal` | `true` | Whether the modal auto-shows on init. Set `false` to run the plugin in embed-only mode — per-embed gates still work, no global dialog is ever shown. See [Embed-only mode](#embed-only-mode-no-global-modal). |
+| `noPromptAttribute` | `'data-cookie-consent-no-prompt'` | Body attribute that suppresses the modal on a single page even when `showModal: true`. Cheaper than maintaining a second init call. |
 | `storagePrefix` | `'cookieConsent:'` | `localStorage` key prefix. Change to migrate from a legacy prefix without losing visitor consent. |
 | `colors` | (off-black / off-white palette) | Object of color tokens. See below — pass any subset; missing keys keep their default. |
 | `embedHeights` | `{ default: 300, soundcloud: 100, gmaps: 470 }` | Per-provider placeholder heights in px. Matching the iframe avoids reflow on click. Pass any subset; add `<provider>: <px>` for any new provider you register. |
@@ -232,21 +233,75 @@ if (consent.hasConsent()) {
 
 Don't read the underlying `localStorage` key directly. The storage prefix and key shape are an internal detail; `hasConsent()` is the supported surface.
 
-## Suppressing the modal on a page
+## Imperative gate (custom render after consent)
 
-Two ways:
+The declarative `<div class="consent-embed" data-embed="…">` flow covers the most common case: drop in an iframe at the URL the visitor consented to. But sometimes the post-consent action isn't just inserting an iframe — it's booting a richer integration that the host page owns. The clearest example is the YouTube IFrame API: not "load this URL" but "instantiate a player I can call `playVideo()` / `pauseVideo()` / `setLoop(true)` on, and wire a state callback so the dialog auto-closes when the video ends." A static `<iframe src>` can't give you that.
 
-```html
-<!-- Per page, declaratively. Cleaner if you're sharing one init call. -->
-<body data-cookie-consent-no-prompt>
-```
+For those cases, the controller exposes an imperative gate:
 
 ```js
-// Per page, programmatically.
+const consent = easyCookieConsent({ /* … */ });
+
+playButton.addEventListener("click", () => {
+  videoDialog.showModal();
+  consent.gate(playerContainer, {
+    provider: "youtube",
+    onLoad: (container) => {
+      // The visitor has consented. Boot whatever the host page wants.
+      loadYouTubeIframeApi().then(() => {
+        new YT.Player(container, {
+          videoId: "dQw4w9WgXcQ",
+          events: {
+            onReady: (e) => { e.target.setLoop(true); e.target.playVideo(); },
+            onStateChange: (e) => { if (e.data === 0) videoDialog.close(); },
+          },
+        });
+      });
+    },
+  });
+});
+```
+
+What `gate()` handles:
+
+- Renders the same placeholder UI the iframe-swap flow renders — same i18n strings, same "remember this provider" checkbox, same per-provider `localStorage` key.
+- Recognizes prior consent. If the visitor has already opted in (per-provider or globally), `onLoad(container)` fires synchronously and no placeholder UI flashes.
+- Adds `.consent-embed`, `.consent-embed--<provider>`, and `.consent-embed--gated` to the container so the injected CSS applies. `--gated` drops the default fixed height because the host container owns sizing (a `<dialog>`, a flex slot, an aspect-ratio'd wrapper, etc.).
+- Adds `.consent-embed--loaded` to the container before calling `onLoad`, so any custom CSS targeting the loaded state still applies.
+
+What you handle:
+
+- Constructing whatever DOM/state/players belong inside `container` once consent is granted. `gate()` clears the container right before calling `onLoad`, so you're free to write into it without worrying about leftover placeholder nodes.
+- Sizing the container itself. The placeholder body fills the container's height; if the container has no defined height, the body collapses. Most callers already have an enclosing slot doing this (a `<dialog>`, a fixed-aspect-ratio wrapper).
+- Re-rendering on subsequent opens. `gate()` is idempotent — call it again on the same container on the next button click and it'll go straight to `onLoad` because consent is now remembered.
+
+The `provider` id you pass scopes the consent key. Built-in ids (`youtube`, `vimeo`, `gmaps`, …) share state with their declarative counterparts — a visitor who clicked "remember YouTube" on a `<div class="consent-embed" data-provider="youtube">` placeholder elsewhere on the site won't see the prompt again here. Custom ids (anything not in the provider registry) are accepted and get a minimal fallback label; useful when you want a private consent scope for a non-iframe integration.
+
+## Embed-only mode (no global modal)
+
+If you don't want the global modal at all and prefer to rely entirely on the per-embed click-to-load gates, pass `showModal: false`:
+
+```js
 easyCookieConsent({ showModal: false });
 ```
 
-Per-embed gates still work either way. Common case: your privacy page itself — surfacing a consent modal in front of the policy the visitor is reading creates a UX loop.
+That's it. Per-embed placeholders still render, the inline "remember this provider" checkbox still persists to `localStorage`, the `onConsent` callback still fires if the visitor flips to global consent later via `consent.optInAll()` — only the auto-shown dialog is suppressed. The controller still exposes `consent.show()` so you can surface the modal manually from a footer link or settings page if you ever want to.
+
+This is the right config when:
+
+- Your site's third-party surface is only embeds (videos, maps, donation widgets), so the per-embed gate already covers everything.
+- You want to keep the consent UX out of the way until the visitor actually reaches an embed.
+- You're rolling your own consent UI and just want the click-to-load machinery underneath.
+
+### Suppressing the modal on a single page
+
+When you do want the modal on most pages but not on, say, the privacy policy itself (surfacing a consent dialog over the policy the visitor came to read is its own UX loop), add the marker attribute to that page's `<body>`:
+
+```html
+<body data-cookie-consent-no-prompt>
+```
+
+The attribute name is configurable via `noPromptAttribute`. Per-embed gates still work; only the auto-shown modal is suppressed for that page.
 
 ## CSS hooks
 
@@ -254,7 +309,8 @@ Per-embed gates still work either way. Common case: your privacy page itself —
 |---|---|
 | `.consent-embed` | The placeholder slot. Always present. |
 | `.consent-embed--<provider>` | Provider-specific. Use for per-provider sizing or styling. |
-| `.consent-embed--loaded` | Added once the iframe has swapped in. Use to strip placeholder framing in custom themes. |
+| `.consent-embed--loaded` | Added once the iframe has swapped in — or, for `gate()`, once the host page's `onLoad` has been called. Use to strip placeholder framing in custom themes. |
+| `.consent-embed--gated` | Added by `gate()` to the host container. Drops the default fixed height so the placeholder fills whatever box the host gave it. |
 | `.consent-modal__backdrop` / `.consent-modal__card` | The modal. Override in your own CSS for stronger restyling than `colors` allows. |
 
 The injected `<style>` carries `data-easy-cookie-consent` — handy if you want to query it from a debug console or remove it manually.
