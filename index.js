@@ -1,4 +1,4 @@
-/*! easy-cookie-consent — v0.1.0 - 2026-06-15
+/*! easy-cookie-consent — v0.2.0 - 2026-06-15
  * https://copperdesign.github.io/
  *
  * Copyright (c) 2026 Christian Fillies;
@@ -20,11 +20,13 @@
  *
  *   2. Global modal. An optional editorial dialog that offers one
  *      place to opt in to all providers at once. Declining (or
- *      dismissing via Esc / X / backdrop) writes nothing, so the
- *      modal will appear again on the next page until the visitor
- *      explicitly opts in. Per-embed gates remain available either
- *      way. The modal is non-blocking — floats over content with a
- *      semi-transparent backdrop.
+ *      dismissing via Esc / X / backdrop) marks the choice for the
+ *      current browser tab via sessionStorage — the modal stays out
+ *      of the way for the rest of the visit, but a fresh tab or a
+ *      return after the tab is closed will show it again. Only an
+ *      explicit global opt-in is durable across visits. Per-embed
+ *      gates remain available either way. The modal is non-blocking
+ *      — floats over content with a semi-transparent backdrop.
  *
  * @docs README.md
  */
@@ -90,6 +92,9 @@ const DEFAULT_OPTIONS = {
     default: 300,      // YouTube-class video
     soundcloud: 100,   // SoundCloud's short player strip
     gmaps: 470,        // full-bleed map band
+    betterplace: 320,  // donation widget
+    gooding: 250,      // banner widget
+    jotform: 800,      // form embeds are typically tall
   },
 
   // Provider registry. Proper-noun fields (`label`, `operator`) are
@@ -133,6 +138,34 @@ const DEFAULT_OPTIONS = {
         style: "border:0",
       },
     },
+    betterplace: {
+      label: "betterplace.org",
+      operator: "gut.org gAG, Berlin",
+      iframeAttrs: {
+        frameborder: "0",
+        marginheight: "0",
+        marginwidth: "0",
+        style: "border:0; background:#fff",
+      },
+    },
+    gooding: {
+      label: "Gooding",
+      operator: "Gooding GmbH, Hamburg",
+      iframeAttrs: {
+        frameborder: "0",
+        scrolling: "yes",
+        allowtransparency: "true",
+      },
+    },
+    jotform: {
+      label: "Jotform",
+      operator: "Jotform Inc., USA",
+      iframeAttrs: {
+        frameborder: "0",
+        scrolling: "no",
+        allowfullscreen: "",
+      },
+    },
   },
 
   // Per-language copy. Functions are used where text wraps a value
@@ -164,6 +197,9 @@ const DEFAULT_OPTIONS = {
           vimeo: "Load video",
           soundcloud: "Load audio",
           gmaps: "Load map",
+          betterplace: "Load donation form",
+          gooding: "Load donation widget",
+          jotform: "Load form",
         },
       },
     },
@@ -191,6 +227,9 @@ const DEFAULT_OPTIONS = {
           vimeo: "Video laden",
           soundcloud: "Audio laden",
           gmaps: "Karte laden",
+          betterplace: "Spendenformular laden",
+          gooding: "Spenden-Widget laden",
+          jotform: "Formular laden",
         },
       },
     },
@@ -200,16 +239,24 @@ const DEFAULT_OPTIONS = {
 // ---------------------------------------------------------------------------
 // Storage state model
 //
-// Only the global-opt-in key is durable across pages. Declining the modal,
-// dismissing it via Esc/X/backdrop, or hitting the "Not now" button all
-// write NOTHING — the next page reads no decision and prompts again. Only
-// an explicit "yes, globally" is remembered.
+// Two stores, two lifetimes:
 //
-// Per-provider keys still persist when the visitor explicitly ticks the
-// inline "remember" box on an individual embed gate. That's an opt-in
-// promise the gate makes; we keep it.
+//   • localStorage holds durable consent — the global opt-in and any
+//     per-provider "remember" ticks. These survive tab close, browser
+//     restart, and returning to the domain days later.
+//
+//   • sessionStorage holds the "not now" decline. It's scoped to the
+//     current top-level browsing context, so navigating between pages
+//     on the same site keeps the modal out of the way, but closing the
+//     tab (or opening the site in a fresh tab) starts the prompt cycle
+//     over. This matches what the visitor likely means by "leaving the
+//     site" — without us having to guess at navigation targets.
+//
+// Per-embed gates always remain available regardless of the global
+// decision, so a session-decliner can still load individual embeds.
 // ---------------------------------------------------------------------------
 const KEY_GLOBAL = "global";
+const KEY_DECLINED = "declined";
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -255,7 +302,20 @@ export default function easyCookieConsent(userOptions = {}) {
     try { localStorage.removeItem(fullKey(k)); } catch { /* ignore */ }
   }
 
+  // Session-scoped twin of the above — used only for the "not now"
+  // decline so it evaporates when the tab closes.
+  function sessionRead(k) {
+    try { return sessionStorage.getItem(fullKey(k)); } catch { return null; }
+  }
+  function sessionWrite(k, v) {
+    try { sessionStorage.setItem(fullKey(k), v); } catch { /* private mode */ }
+  }
+  function sessionClear(k) {
+    try { sessionStorage.removeItem(fullKey(k)); } catch { /* ignore */ }
+  }
+
   function hasGlobalConsent() { return storeRead(KEY_GLOBAL) === "1"; }
+  function hasDeclinedThisSession() { return sessionRead(KEY_DECLINED) === "1"; }
   function hasConsent(providerId) {
     if (hasGlobalConsent()) return true;
     return storeRead(providerId) === "1";
@@ -567,20 +627,25 @@ export default function easyCookieConsent(userOptions = {}) {
     modalLastFocused = document.activeElement;
     optIn.focus();
 
+    // Esc / X / backdrop are all read as "not now" — same as the explicit
+    // opt-out button. Anything else would mean the visitor presses Esc to
+    // get rid of the modal and finds it again on the very next page,
+    // which is the exact annoyance the session-scoped decline exists to
+    // prevent. Only the primary opt-in button writes the durable global
+    // consent.
+    const dismiss = () => { optOutAll(); closeModal(); };
+
     modalKeyHandler = (e) => {
-      // Esc / X / backdrop / opt-out button all dismiss the modal the
-      // same way: nothing persists. Only the primary "yes, globally"
-      // button writes a durable choice.
-      if (e.key === "Escape") closeModal();
+      if (e.key === "Escape") dismiss();
     };
     document.addEventListener("keydown", modalKeyHandler);
 
-    closeBtn.addEventListener("click", closeModal);
+    closeBtn.addEventListener("click", dismiss);
     backdrop.addEventListener("click", (e) => {
-      if (e.target === backdrop) closeModal();
+      if (e.target === backdrop) dismiss();
     });
     optIn.addEventListener("click", () => { optInAll(); closeModal(); });
-    optOut.addEventListener("click", () => { optOutAll(); closeModal(); });
+    optOut.addEventListener("click", dismiss);
   }
 
   function closeModal() {
@@ -600,17 +665,21 @@ export default function easyCookieConsent(userOptions = {}) {
   // --- Public actions
   function optInAll() {
     storeWrite(KEY_GLOBAL, "1");
+    // A prior "not now" no longer reflects what the visitor wants.
+    sessionClear(KEY_DECLINED);
     // Swap in any embeds already rendered as placeholders on this page.
     processEmbeds();
   }
 
   function optOutAll() {
-    // Intentionally non-durable: no "declined" flag is written, so the
-    // modal will appear again on the next page. "Not now" is a current-
-    // page decision, not a permanent setting. Per-embed placeholders on
-    // this page stay as-is and continue to respond to their individual
+    // "Not now" is a tab-scoped decision: we mark it in sessionStorage
+    // so subsequent navigations within the visit don't keep re-prompting,
+    // but nothing durable is written. Closing the tab (or opening the
+    // site in a fresh one) brings the modal back. Per-embed placeholders
+    // on this page stay as-is and continue to respond to their individual
     // buttons.
     storeClear(KEY_GLOBAL);
+    sessionWrite(KEY_DECLINED, "1");
   }
 
   function reset() {
@@ -620,6 +689,7 @@ export default function easyCookieConsent(userOptions = {}) {
     for (const key of [KEY_GLOBAL, ...Object.keys(opts.providers)]) {
       storeClear(key);
     }
+    sessionClear(KEY_DECLINED);
   }
 
   function teardown() {
@@ -643,7 +713,12 @@ export default function easyCookieConsent(userOptions = {}) {
 
   const suppressedByAttr = document.body
     && document.body.hasAttribute(opts.noPromptAttribute);
-  if (opts.showModal && !suppressedByAttr && !hasGlobalConsent()) {
+  if (
+    opts.showModal
+    && !suppressedByAttr
+    && !hasGlobalConsent()
+    && !hasDeclinedThisSession()
+  ) {
     showModal();
   }
 

@@ -8,3 +8,4 @@ node_modules/
 
 # Local Claude Code workspace — agent notes, transcripts, scratch.
 .claude/
+.gstack/

@@ -26,7 +26,7 @@ That's the whole quickstart. The embed renders as a styled "Load video" placehol
 ## What it does
 
 - **Per-embed gate.** Each `<div class="consent-embed">` is swapped for an iframe only on user click. Until then, no request goes to the third-party host.
-- **Optional global modal.** Auto-shows on every page until the visitor explicitly opts in to all providers at once. Declining or dismissing writes nothing — the modal returns on the next page. The only durable choice is the explicit "allow all."
+- **Optional global modal.** Auto-shows until the visitor explicitly opts in to all providers at once. Declining or dismissing (Esc / X / backdrop / "Not now") writes a `sessionStorage` flag so the modal stays out of the way for the rest of the visit, but disappears the moment the tab closes — the modal returns on a fresh visit. The only choice that survives the tab is the explicit "allow all."
 - **Per-provider remember.** Each gate has an opt-in "remember this provider" checkbox. Persisted in `localStorage`.
 - **i18n built in.** English and German shipped; add any language by passing a `strings.<lang>` table.
 - **Zero dependencies, ~6 KB minified, one file.** Drop in via npm or vendor [`index.js`](./index.js) directly.
@@ -68,7 +68,7 @@ Returns a controller object:
 |---|---|
 | `consent.show()` | Open the modal manually. Useful for a footer "consent settings" link or for re-prompting after the visitor closed it with Esc. |
 | `consent.optInAll()` | Writes the global opt-in and swaps in every placeholder currently on the page. Same as clicking the modal's primary button. |
-| `consent.optOutAll()` | Clears the global opt-in. Writes nothing else, so the modal returns on the next page. Same as the modal's "Not now" button. |
+| `consent.optOutAll()` | Clears the global opt-in and writes a tab-scoped `declined` flag to `sessionStorage`, so the modal stays out of the way for the rest of the visit but returns in a fresh tab. Same as the modal's "Not now" button. |
 | `consent.reset()` | Wipes **all** consent state (global plus every per-provider key). Use for a "revoke consent" link on the privacy page. Iframes already loaded on the current page stay loaded — a reload re-gates them. |
 | `consent.teardown()` | Removes injected styles and the modal node if open. Idempotent. Use in SPAs when the host element is being unmounted. |
 
@@ -230,7 +230,7 @@ The dominant pattern for "consent" on the modern web is a banner that closes onc
 The pattern this module enforces:
 
 1. **No third-party request until explicit consent.** The iframe URL is in `data-embed`, not `<iframe src>`. The DOM literally cannot ping YouTube before the click.
-2. **The only persistent decision is "yes."** Declining writes nothing. The modal returns on the next page until the visitor explicitly opts in. No dark-pattern "I'll just dismiss this once and it's gone forever."
+2. **The only durable decision is "yes."** Declining writes a tab-scoped flag (so the modal doesn't pester the visitor for the rest of the visit) but nothing that survives the tab — a fresh visit prompts again. No dark-pattern "I'll just dismiss this once and it's gone forever."
 3. **Per-embed control is always available.** Even after declining, each embed has its own gate with its own opt-in. You can permit YouTube but not Google Maps without finding a settings panel.
 
 It's also small. One file, no dependencies, no build step. Vendor it if you don't like npm.
