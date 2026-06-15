@@ -4,9 +4,9 @@
 [![bundle size](https://img.shields.io/bundlephobia/minzip/@copperdesign/easy-cookie-consent)](https://bundlephobia.com/package/@copperdesign/easy-cookie-consent)
 [![license](https://img.shields.io/npm/l/@copperdesign/easy-cookie-consent.svg)](./LICENSE)
 
-Click-to-load consent gate for third-party embeds (YouTube, Vimeo, SoundCloud, Google Maps) plus an optional global consent modal. No framework. No build step. Multi-language. Single file.
+Click-to-load consent gate for third-party embeds (YouTube, Vimeo, SoundCloud, Google Maps) plus an optional global consent modal and deferred-load hooks for Google Fonts and arbitrary callbacks. No framework. No build step. Multi-language. Single file.
 
-The third-party iframe URL never enters the document until the visitor clicks — which is what the German "informierte Einwilligung" (and GDPR more broadly) actually requires, not a banner that loads the embed behind the scenes anyway.
+The third-party iframe URL never enters the document until the visitor clicks — which is what the German "informierte Einwilligung" (and GDPR more broadly) actually requires, not a banner that loads the embed behind the scenes anyway. The same gate is extended via `onConsent` / `googleFonts` to the page-wide third-party resources (analytics, fonts, embedded forms, calendar feeds) that aren't iframes but still leak visitor data on load.
 
 ```html
 <div class="consent-embed"
@@ -28,6 +28,7 @@ That's the whole quickstart. The embed renders as a styled "Load video" placehol
 - **Per-embed gate.** Each `<div class="consent-embed">` is swapped for an iframe only on user click. Until then, no request goes to the third-party host.
 - **Optional global modal.** Auto-shows until the visitor explicitly opts in to all providers at once. Declining or dismissing (Esc / X / backdrop / "Not now") writes a `sessionStorage` flag so the modal stays out of the way for the rest of the visit, but disappears the moment the tab closes — the modal returns on a fresh visit. The only choice that survives the tab is the explicit "allow all."
 - **Per-provider remember.** Each gate has an opt-in "remember this provider" checkbox. Persisted in `localStorage`.
+- **Deferred Google Fonts.** Pass one or more Google Fonts URLs and the plugin injects the `<link rel="stylesheet">` only after consent. Same for any other deferred work via the `onConsent` callback.
 - **i18n built in.** English and German shipped; add any language by passing a `strings.<lang>` table.
 - **Zero dependencies, ~6 KB minified, one file.** Drop in via npm or vendor [`index.js`](./index.js) directly.
 
@@ -71,6 +72,7 @@ Returns a controller object:
 | `consent.optOutAll()` | Clears the global opt-in and writes a tab-scoped `declined` flag to `sessionStorage`, so the modal stays out of the way for the rest of the visit but returns in a fresh tab. Same as the modal's "Not now" button. |
 | `consent.reset()` | Wipes **all** consent state (global plus every per-provider key). Use for a "revoke consent" link on the privacy page. Iframes already loaded on the current page stay loaded — a reload re-gates them. |
 | `consent.teardown()` | Removes injected styles and the modal node if open. Idempotent. Use in SPAs when the host element is being unmounted. |
+| `consent.hasConsent()` | Returns `true` if the visitor has granted global consent (durably, in `localStorage`). Use to gate code outside the plugin without poking at the storage key directly. |
 
 ## Options
 
@@ -85,6 +87,8 @@ Returns a controller object:
 | `colors` | (off-black / off-white palette) | Object of color tokens. See below — pass any subset; missing keys keep their default. |
 | `embedHeights` | `{ default: 300, soundcloud: 100, gmaps: 470 }` | Per-provider placeholder heights in px. Matching the iframe avoids reflow on click. Pass any subset; add `<provider>: <px>` for any new provider you register. |
 | `fontStack` | `'"Helvetica Neue", Helvetica, Arial, sans-serif'` | CSS `font-family` applied to both surfaces. Override for a typographic match with your host page. |
+| `onConsent` | `null` | Callback fired once when global consent becomes true — modal opt-in click, `optInAll()` call, or boot-time restoration of a prior opt-in. Use for analytics, embedded forms, calendar feeds, anything that would transmit visitor data on load. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
+| `googleFonts` | `null` | A single Google Fonts stylesheet URL, or an array of URLs. After consent, the plugin injects each as `<link rel="stylesheet">` and a single preconnect to `fonts.gstatic.com`. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
 | `providers` | (youtube, vimeo, soundcloud, gmaps) | Map of provider definitions. Pass entries to add or override. See below. |
 | `strings` | (`en`, `de`) | Map of localized strings. Pass entries to add or override. See below. |
 
@@ -181,6 +185,52 @@ The active language is resolved at call time, in this order:
 1. `options.language` — explicit override.
 2. `<html lang="…">` on the page — exact match first, then prefix (`"en-US"` → `"en"`).
 3. `options.fallbackLanguage` — last resort.
+
+## Deferred loads (`onConsent` + `googleFonts`)
+
+The per-embed gate covers iframes. Plenty of third-party leakage isn't an iframe — Google Fonts CSS, an analytics snippet, a Wufoo form helper, a Google Calendar feed. The plugin exposes two hooks for those:
+
+```js
+easyCookieConsent({
+  privacyHref: '/privacy.html',
+
+  // Convenience: Google Fonts. Pass a URL or an array of URLs.
+  googleFonts: 'https://fonts.googleapis.com/css?family=Inter:400,700&display=swap',
+
+  // Generic: any deferred work. Fired once when global consent becomes true.
+  onConsent: () => {
+    inject('/assets/js/vendor/wufoo.min.js');
+    inject('/assets/js/vendor/jquery.gcal_flow.min.js', initCalendar);
+    enableAnalytics();
+  },
+});
+```
+
+Both hooks fire at the same trigger — the visitor opts in via the modal, `optInAll()` is called, or a prior opt-in is restored on boot — and both fire at most once per controller instance. Per-provider "remember this embed" ticks don't fire them; only an explicit global opt-in does.
+
+### The catch: static `<link>` / `@import` still leaks
+
+The plugin can only defer requests that go through *it*. A `<link rel="stylesheet" href="https://fonts.googleapis.com/...">` in your HTML, or `@import url('https://fonts.googleapis.com/...');` in your CSS, fires on every pageview *before* any JS runs — the visitor's IP and User-Agent reach Google before the consent modal has rendered. The `googleFonts` option does nothing about that request because it has already happened.
+
+Adopting `googleFonts` therefore means two changes:
+
+1. **Remove** the static `<link>` / `@import` from your HTML and CSS.
+2. **Add** the same URL to `googleFonts` so it loads via JS, only after consent.
+
+Visitors who haven't yet opted in see the page in your CSS `font-family` fallback (the next family in the stack — Helvetica, system-ui, whatever). After opt-in, the Google Fonts stylesheet swaps in and the page repaints. If that fallback flash is unacceptable, self-host the fonts instead — the plugin can't square that circle for you.
+
+### Checking consent from outside
+
+If you need to gate code outside `onConsent` — say, a button that should be hidden until consent is granted — use the controller's `hasConsent()`:
+
+```js
+const consent = easyCookieConsent({ /* … */ });
+if (consent.hasConsent()) {
+  showAnalyticsToggle();
+}
+```
+
+Don't read the underlying `localStorage` key directly. The storage prefix and key shape are an internal detail; `hasConsent()` is the supported surface.
 
 ## Suppressing the modal on a page
 

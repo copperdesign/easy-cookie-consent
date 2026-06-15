@@ -92,6 +92,20 @@
 	</div>
 
 	<div class="section">
+		<h2>Deferred Google Fonts</h2>
+		<p style="color:#666; font-size:0.9rem; line-height:1.5;">
+			Inter is configured via the <code>googleFonts</code> option below.
+			Before consent, the line beneath renders in the page's
+			<code>Helvetica Neue</code> fallback. Click "Allow all external
+			content" in the modal — the stylesheet injects and the line
+			repaints in Inter.
+		</p>
+		<p id="font-demo" style="font-family: Inter, 'Helvetica Neue', Arial, sans-serif; font-size: 1.5rem; letter-spacing: -0.02em; margin: 1rem 0 0;">
+			The quick brown fox jumps over the lazy dog.
+		</p>
+	</div>
+
+	<div class="section">
 		<h2>Controls</h2>
 		<div class="controls">
 			<button id="show">Open modal</button>
@@ -102,6 +116,7 @@
 			reloads the page — useful for testing the modal flow without opening
 			a private window every time.
 		</p>
+		<p id="consent-state" style="color:#666; font-size:0.85rem; margin-top:0.5rem;"></p>
 	</div>
 </main>
 
@@ -116,9 +131,28 @@
 	// without import scope juggling. In a real site you'd typically keep
 	// it local — only attach to window when you need inline onclick=
 	// revoke links from a privacy page.
+	const stateEl = document.getElementById('consent-state');
+	const renderState = () => {
+		stateEl.textContent = consent.hasConsent()
+			? 'Global consent: granted (fonts injected).'
+			: 'Global consent: not yet — fonts deferred.';
+	};
+
 	window.consent = easyCookieConsent({
 		privacyHref: '#privacy',
+		// Demoes the deferred Google Fonts loader. Before consent, the demo
+		// line above renders in Helvetica Neue; after consent the Inter
+		// stylesheet is injected and the line repaints.
+		googleFonts: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap',
+		// Demoes the generic deferred-load callback. In a real site this
+		// would inject analytics, embedded forms, etc.
+		onConsent: () => {
+			console.log('[example] consent granted — running deferred loads');
+			renderState();
+		},
 	});
+
+	renderState();
 
 	document.getElementById('show').addEventListener('click', () => consent.show());
 	document.getElementById('reset').addEventListener('click', () => {

@@ -1,4 +1,4 @@
-/*! easy-cookie-consent — v0.2.0 - 2026-06-15
+/*! easy-cookie-consent — v0.3.0 - 2026-06-15
  * https://copperdesign.github.io/
  *
  * Copyright (c) 2026 Christian Fillies;
@@ -83,6 +83,38 @@ const DEFAULT_OPTIONS = {
   },
 
   fontStack: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+
+  // Generic deferred-load callback. Fires at most once per controller
+  // instance, the moment global consent becomes true — either when the
+  // visitor clicks the modal's primary opt-in button, when optInAll() is
+  // called via the API, or synchronously at boot if a prior opt-in is
+  // restored from localStorage. Use this hook for analytics, embedded
+  // forms, calendar feeds — anything that would transmit visitor data on
+  // load and needs to wait for explicit consent.
+  //
+  // Per-provider remember-ticks do NOT trigger this — they only authorize
+  // the one embed the visitor clicked. onConsent is reserved for the
+  // global "yes to all" event.
+  onConsent: null,
+
+  // Convenience: deferred Google Fonts loader. Pass one URL or an array.
+  // The plugin injects each `<link rel="stylesheet">` (plus a single
+  // preconnect to fonts.gstatic.com) after consent, idempotently.
+  //
+  //   googleFonts: 'https://fonts.googleapis.com/css?family=Inter:400,700'
+  //   googleFonts: [
+  //     'https://fonts.googleapis.com/css?family=EB+Garamond',
+  //     'https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap',
+  //   ]
+  //
+  // IMPORTANT: this only handles the POST-consent load. If your CSS still
+  // has `@import url('https://fonts.googleapis.com/...')` or your HTML
+  // still has `<link rel="stylesheet" href="...fonts.googleapis.com...">`,
+  // the request fires on every pageview BEFORE this module runs — the
+  // visitor's IP leaks to Google before any consent gate has rendered.
+  // Remove those static references when adopting this option, and accept
+  // an unstyled-fallback flash for visitors who haven't yet opted in.
+  googleFonts: null,
 
   // Default heights for the per-embed placeholder, in px. Match the
   // iframe dimensions the embed will take on click so the page doesn't
@@ -177,10 +209,10 @@ const DEFAULT_OPTIONS = {
       modal: {
         title: "Allow external content?",
         body:
-          "This site embeds videos, audio and maps from third parties. " +
-          "Loading them transfers data to those providers. You can either " +
-          "consent once for all embeds here, or decide individually per " +
-          "embed. Details in the ",
+          "This site loads external content from third-party providers. " +
+          "Loading it transfers data to those providers. You can consent " +
+          "once for all of them here, or decide individually per embed. " +
+          "Details in the ",
         privacyLinkLabel: "privacy policy",
         optInLabel: "Allow all external content",
         optOutLabel: "Not now",
@@ -207,10 +239,10 @@ const DEFAULT_OPTIONS = {
       modal: {
         title: "Externe Inhalte erlauben?",
         body:
-          "Diese Seite bindet Videos, Audio und Karten von Drittanbietern " +
-          "ein. Beim Laden werden Daten an diese Anbieter übertragen. Du " +
-          "kannst hier einmalig allen Inhalten zustimmen — oder einzeln " +
-          "pro Embed entscheiden. Mehr dazu in der ",
+          "Diese Seite lädt externe Inhalte von Drittanbietern. Dabei " +
+          "werden Daten an diese Anbieter übertragen. Du kannst hier " +
+          "allem auf einmal zustimmen — oder einzeln pro Embed " +
+          "entscheiden. Mehr dazu in der ",
         privacyLinkLabel: "Datenschutzerklärung",
         optInLabel: "Alle externen Inhalte zulassen",
         optOutLabel: "Nicht jetzt",
@@ -272,9 +304,11 @@ const KEY_DECLINED = "declined";
  * @returns {{
  *   show: Function,
  *   optInAll: Function,
+ *   optIn: (providerId: string) => void,
  *   optOutAll: Function,
  *   reset: Function,
  *   teardown: Function,
+ *   hasConsent: (providerId?: string) => boolean,
  * }} Controller API. Bind to `window` if you want inline
  *    `onclick="…"` revoke links (see README → "Revoke link").
  *
@@ -288,6 +322,14 @@ export default function easyCookieConsent(userOptions = {}) {
   let modalEl = null;
   let modalKeyHandler = null;
   let modalLastFocused = null;
+
+  // onConsent + googleFonts are fire-once-per-instance. Tracked here so a
+  // restored-on-boot consent followed by an explicit optInAll() doesn't
+  // double-fire — and so a per-provider remember-tick never accidentally
+  // triggers global side effects. teardown() doesn't reset this; a host
+  // page that wants the effects to fire again after teardown should
+  // re-initialize the controller.
+  let consentEffectsFired = false;
 
   // --- Storage (private-mode-safe; failures degrade to "no prior consent",
   // which is the safe direction.)
@@ -662,12 +704,88 @@ export default function easyCookieConsent(userOptions = {}) {
     modalLastFocused = null;
   }
 
+  // --- Deferred-load effects. Runs the user's onConsent callback and
+  // injects any googleFonts URLs. Idempotent per controller instance —
+  // the second call no-ops, so it's safe to invoke from both "consent
+  // restored on boot" and "consent granted just now" paths without
+  // worrying about which one ran first.
+  function runConsentEffects() {
+    if (consentEffectsFired) return;
+    consentEffectsFired = true;
+
+    if (opts.googleFonts) injectGoogleFonts(opts.googleFonts);
+
+    if (typeof opts.onConsent === "function") {
+      // Failures here shouldn't blow up the consent flow itself — the
+      // visitor has already given consent; the side effect not firing
+      // cleanly is the caller's problem, not the gate's.
+      try {
+        opts.onConsent();
+      } catch (err) {
+        if (typeof console !== "undefined" && console.error) {
+          console.error("[easy-cookie-consent] onConsent threw:", err);
+        }
+      }
+    }
+  }
+
+  // Inject preconnect (once) + a `<link rel="stylesheet">` per URL.
+  // Idempotent: a second call with the same URL won't double-inject. The
+  // tags carry `data-easy-cookie-consent` so teardown() (or a debug
+  // session) can locate them.
+  function injectGoogleFonts(value) {
+    const urls = Array.isArray(value) ? value : [value];
+    const head = document.head;
+    if (!head) return;
+
+    // One preconnect to fonts.gstatic.com is enough for all stylesheets —
+    // gstatic is where the actual woff2 files are served from. We don't
+    // preconnect to fonts.googleapis.com because the stylesheet link
+    // we're about to append handles that origin's connection itself.
+    if (!head.querySelector('link[data-easy-cookie-consent="fonts-preconnect"]')) {
+      const pre = document.createElement("link");
+      pre.rel = "preconnect";
+      pre.href = "https://fonts.gstatic.com";
+      pre.crossOrigin = "";
+      pre.setAttribute("data-easy-cookie-consent", "fonts-preconnect");
+      head.appendChild(pre);
+    }
+
+    for (const url of urls) {
+      if (typeof url !== "string" || !url) continue;
+      if (head.querySelector(
+        `link[data-easy-cookie-consent="fonts"][href="${cssAttrEscape(url)}"]`
+      )) continue;
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = url;
+      link.setAttribute("data-easy-cookie-consent", "fonts");
+      head.appendChild(link);
+    }
+  }
+
   // --- Public actions
   function optInAll() {
     storeWrite(KEY_GLOBAL, "1");
     // A prior "not now" no longer reflects what the visitor wants.
     sessionClear(KEY_DECLINED);
     // Swap in any embeds already rendered as placeholders on this page.
+    processEmbeds();
+    // Deferred loads (analytics, fonts, etc.) fire AFTER storage is
+    // written and AFTER placeholders swap — so a callback that introspects
+    // the page sees a consistent post-consent state.
+    runConsentEffects();
+  }
+
+  // Per-provider opt-in. Use for inline "load X" CTAs that gate a fetch
+  // or script load (not a built-in iframe embed — those handle their own
+  // remember-tick through the placeholder). Writes the per-provider key,
+  // swaps in any matching iframe placeholders for symmetry, and is a
+  // no-op for an unknown provider id (still writes the key, so a custom
+  // gate the host page implements can read it back).
+  function optIn(providerId) {
+    if (typeof providerId !== "string" || !providerId) return;
+    storeWrite(providerId, "1");
     processEmbeds();
   }
 
@@ -711,6 +829,11 @@ export default function easyCookieConsent(userOptions = {}) {
   injectStyles();
   processEmbeds();
 
+  // Restore deferred effects synchronously if the visitor opted in on a
+  // previous page. Runs BEFORE the modal-show check so the page never
+  // shows the consent prompt while simultaneously firing onConsent.
+  if (hasGlobalConsent()) runConsentEffects();
+
   const suppressedByAttr = document.body
     && document.body.hasAttribute(opts.noPromptAttribute);
   if (
@@ -725,9 +848,16 @@ export default function easyCookieConsent(userOptions = {}) {
   return {
     show: showModal,
     optInAll,
+    optIn,
     optOutAll,
     reset,
     teardown,
+    // `hasConsent()` — no argument — answers "did the visitor opt in to
+    // everything?". `hasConsent("googlesheets")` answers "is that specific
+    // provider OK to use right now?" (true if the visitor opted in globally
+    // or remembered this provider individually). Use the per-provider form
+    // when gating a fetch / script load behind an inline CTA.
+    hasConsent,
   };
 }
 
@@ -782,6 +912,14 @@ function mergeStrings(base, user) {
     };
   }
   return out;
+}
+
+// Escape a string for safe use inside a CSS attribute selector value —
+// just the characters that would break out of the surrounding `"…"`.
+// Used by the Google Fonts injector's "already there?" check; we don't
+// want a stray quote in the user's URL to throw a SyntaxError.
+function cssAttrEscape(s) {
+  return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 // Emit one `.consent-embed--<provider> { height: <px>px }` line per
