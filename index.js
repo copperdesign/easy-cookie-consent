@@ -484,6 +484,12 @@ export default function easyCookieConsent(userOptions = {}) {
       const providerId = node.dataset.provider;
       const provider = opts.providers[providerId];
       if (!provider) continue; // unknown provider — leave the node alone so it's visible in dev
+      // Match the modifier class the imperative gate() path applies, so
+      // per-provider CSS (the injected `embedHeights` rule, the gmaps
+      // border-radius reset, any host overrides) targets declarative
+      // nodes too. Authors can pre-set it in markup; classList.add is a
+      // no-op when it's already there.
+      node.classList.add("consent-embed--" + providerId);
       if (hasConsent(providerId)) {
         swapInIframe(node, provider);
       } else {
