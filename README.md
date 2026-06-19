@@ -74,6 +74,7 @@ Returns a controller object:
 | `consent.teardown()` | Removes injected styles and the modal node if open. Idempotent. Use in SPAs when the host element is being unmounted. |
 | `consent.hasConsent()` | Returns `true` if the visitor has granted global consent (durably, in `localStorage`). Use to gate code outside the plugin without poking at the storage key directly. |
 | `consent.gate(container, { provider, onLoad })` | Imperative consent gate. Mounts the same placeholder UI used by the iframe-swap flow into `container`, and on consent calls `onLoad(container)` instead of inserting an iframe. Use when the post-consent action is richer than dropping in `<iframe src="…">` — booting the YouTube IFrame API for autoplay/loop/state callbacks, mounting an embedded form's JS, kicking off a calendar widget. See [Imperative gate](#imperative-gate-custom-render-after-consent). |
+| `consent.adopt(html)` | Rewrites raw third-party embed markup — a CMS-pasted `<iframe>`, `<embed>`, or `<object>` with no `consent-embed` class — into gated placeholders, and returns a `DocumentFragment` to insert. The third-party host is never contacted until consent. Use for **client-rendered** content (headless CMS, SPA, fetched HTML). See [Adopting raw embeds](#adopting-raw-embeds). |
 
 ## Options
 
@@ -276,6 +277,41 @@ What you handle:
 - Re-rendering on subsequent opens. `gate()` is idempotent — call it again on the same container on the next button click and it'll go straight to `onLoad` because consent is now remembered.
 
 The `provider` id you pass scopes the consent key. Built-in ids (`youtube`, `vimeo`, `gmaps`, …) share state with their declarative counterparts — a visitor who clicked "remember YouTube" on a `<div class="consent-embed" data-provider="youtube">` placeholder elsewhere on the site won't see the prompt again here. Custom ids (anything not in the provider registry) are accepted and get a minimal fallback label; useful when you want a private consent scope for a non-iframe integration.
+
+## Adopting raw embeds
+
+The markup contract assumes you (or your templates) wrap each embed in `<div class="consent-embed" …>`. But a CMS editor pasting a YouTube share snippet won't know that convention — they drop in a raw iframe:
+
+```html
+<iframe width="560" height="315" src="https://www.youtube.com/embed/Ky417-3HDKs" allowfullscreen></iframe>
+```
+
+`consent.adopt(html)` rewrites that — and any `<embed>` / `<object>` — into the same gated placeholder the declarative path produces, then hands back a `DocumentFragment` to insert:
+
+```js
+const consent = easyCookieConsent({ showModal: false });
+
+// `html` is whatever the CMS field rendered to — a fetch response, an
+// innerHTML string, a block of rich text.
+container.replaceChildren(consent.adopt(html));
+```
+
+The provider is resolved from the URL's host, so a pasted `youtube.com/embed/…` gets the YouTube label, operator, and iframe attributes automatically — no `data-provider` needed. An unrecognized cross-origin host is gated under a generic "external content from `<host>`" placeholder, so nothing third-party slips through unlabelled. The embed's `width`/`height` become an `aspect-ratio` on the placeholder, so the box is reserved and the swap doesn't reflow.
+
+**Insert the returned fragment — do not `innerHTML` it back to a string.** Serializing drops the placeholder's click handler, and for any embed the visitor already consented to it would write a live `src` back into the page.
+
+### When this is a real guarantee — and when it isn't
+
+`adopt()` parses the HTML in an inert document and only ever connects the gated placeholder, so the third-party `src` is never fetched. **That guarantee holds only for content you route through `adopt()` before it reaches the live page** — client-rendered content: a headless CMS payload, a fetch response, anything you assign via JS.
+
+It does **not** retroactively protect an embed that was already baked into the HTML the server delivered. By the time any script runs, the browser's parser has already fetched that iframe's `src` — cookies set, host contacted. No client-side code can un-send that request. For server-rendered embeds the rewrite has to happen **upstream** — in the CMS, template, or a render-time filter — before the bytes leave the server. Reach for `adopt()` on the client only when the markup hasn't been parsed into the live document yet.
+
+### Opting embeds out
+
+- `data-consent-ignore` on a single element skips it (e.g. an embed you've already vetted).
+- `ignoreHosts: ['js.stripe.com', 'cdn.example.com']` in options skips whole hosts (subdomains included) — for a cleared payment provider or your own CDN subdomain that's technically cross-origin.
+
+Same-origin embeds and `data:` / `blob:` URLs are never gated — they contact no third party.
 
 ## Embed-only mode (no global modal)
 

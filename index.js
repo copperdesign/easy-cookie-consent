@@ -142,6 +142,13 @@ const DEFAULT_OPTIONS = {
     youtube: {
       label: "YouTube",
       operator: "Google LLC, USA",
+      // `hosts` powers adopt() — the URL→provider resolver matches a raw
+      // pasted iframe's src host against these so the gate gets the right
+      // label/operator without a hand-authored data-provider. Bare entries
+      // match the host (subdomain-tolerant); entries with a "/" match a
+      // host+path prefix, which is how the three Google products that share
+      // google.com get told apart (see gmaps/gsheets below).
+      hosts: ["youtube.com", "youtube-nocookie.com", "youtu.be"],
       iframeAttrs: {
         frameborder: "0",
         allow: "autoplay; encrypted-media",
@@ -151,6 +158,7 @@ const DEFAULT_OPTIONS = {
     vimeo: {
       label: "Vimeo",
       operator: "Vimeo, Inc., USA",
+      hosts: ["vimeo.com"],
       iframeAttrs: {
         frameborder: "0",
         allow: "autoplay; fullscreen; picture-in-picture",
@@ -160,6 +168,7 @@ const DEFAULT_OPTIONS = {
     soundcloud: {
       label: "SoundCloud",
       operator: "SoundCloud Global Ltd. & Co. KG, Berlin",
+      hosts: ["soundcloud.com"],
       iframeAttrs: {
         frameborder: "no",
         scrolling: "no",
@@ -169,6 +178,10 @@ const DEFAULT_OPTIONS = {
     gmaps: {
       label: "Google Maps",
       operator: "Google LLC, USA",
+      // google.com/maps shares the host with Sheets/Calendar/Search, so the
+      // path prefix is load-bearing here. maps.app.goo.gl is the share-link
+      // host; maps.google.com the legacy one.
+      hosts: ["google.com/maps", "maps.google.com", "maps.app.goo.gl"],
       iframeAttrs: {
         frameborder: "0",
         allowfullscreen: "",
@@ -178,6 +191,7 @@ const DEFAULT_OPTIONS = {
     gsheets: {
       label: "Google Sheets",
       operator: "Google LLC, USA",
+      hosts: ["docs.google.com/spreadsheets"],
       iframeAttrs: {
         frameborder: "0",
         // Sheets' published-to-the-web iframe ships its own scrollbars; let
@@ -188,6 +202,7 @@ const DEFAULT_OPTIONS = {
     gcal: {
       label: "Google Calendar",
       operator: "Google LLC, USA",
+      hosts: ["calendar.google.com"],
       iframeAttrs: {
         frameborder: "0",
         scrolling: "no",
@@ -197,6 +212,7 @@ const DEFAULT_OPTIONS = {
     betterplace: {
       label: "betterplace.org",
       operator: "gut.org gAG, Berlin",
+      hosts: ["betterplace.org"],
       iframeAttrs: {
         frameborder: "0",
         marginheight: "0",
@@ -234,7 +250,7 @@ const DEFAULT_OPTIONS = {
         title: "Allow external content?",
         body:
           "This site loads external content from third-party providers. " +
-          "Loading it transfers data to those providers. You can consent " +
+          "Loading it connects your browser to those providers. You can consent " +
           "once for all of them here, or decide individually per embed. " +
           "Details in the ",
         privacyLinkLabel: "privacy policy",
@@ -244,7 +260,7 @@ const DEFAULT_OPTIONS = {
       },
       placeholder: {
         label: (p) => `External content from ${p}`,
-        hint: (op) => `Loading transfers data to ${op}. Details in the `,
+        hint: (op) => `Loading connects your browser to ${op}. Details in the `,
         hintAfter: ".",
         privacyLinkLabel: "privacy policy",
         remember: (p) => `Always load ${p} in the future`,
@@ -265,8 +281,8 @@ const DEFAULT_OPTIONS = {
       modal: {
         title: "Externe Inhalte erlauben?",
         body:
-          "Diese Seite lädt externe Inhalte von Drittanbietern. Dabei " +
-          "werden Daten an diese Anbieter übertragen. Du kannst hier " +
+          "Diese Seite lädt externe Inhalte von Drittanbietern. Beim " +
+          "Laden wird eine Verbindung zu diesen Anbietern hergestellt. Du kannst hier " +
           "allem auf einmal zustimmen — oder einzeln pro Embed " +
           "entscheiden. Mehr dazu in der ",
         privacyLinkLabel: "Datenschutzerklärung",
@@ -276,7 +292,7 @@ const DEFAULT_OPTIONS = {
       },
       placeholder: {
         label: (p) => `Externer Inhalt von ${p}`,
-        hint: (op) => `Beim Laden werden Daten an ${op} übertragen. Mehr dazu in der `,
+        hint: (op) => `Beim Laden wird eine Verbindung zu ${op} hergestellt. Mehr dazu in der `,
         hintAfter: ".",
         privacyLinkLabel: "Datenschutzerklärung",
         remember: (p) => `${p} künftig automatisch laden`,
@@ -338,6 +354,7 @@ const KEY_DECLINED = "declined";
  *   teardown: Function,
  *   hasConsent: (providerId?: string) => boolean,
  *   gate: (container: Element, opts: { provider: string, onLoad: (container: Element) => void }) => void,
+ *   adopt: (html: string) => DocumentFragment,
  * }} Controller API. Bind to `window` if you want inline
  *    `onclick="…"` revoke links (see README → "Revoke link").
  *
@@ -496,6 +513,45 @@ export default function easyCookieConsent(userOptions = {}) {
         renderPlaceholder(node, providerId, provider);
       }
     }
+  }
+
+  // --- Resolve a raw embed URL to a registered provider id, or null.
+  // Matches against each provider's `hosts`: a bare entry ("youtube.com")
+  // matches the host and any subdomain; an entry with a slash
+  // ("google.com/maps") matches a host+path prefix, which is the only way
+  // to tell the Google products that share google.com apart. `www.` is
+  // stripped both sides so it never has to be spelled out in the registry.
+  function providerForUrl(url) {
+    let u;
+    try { u = new URL(url, location.href); } catch { return null; }
+    const host = u.host.replace(/^www\./, "");
+    const hostPath = host + u.pathname;
+    for (const [id, provider] of Object.entries(opts.providers)) {
+      for (const pattern of provider.hosts || []) {
+        if (pattern.includes("/")) {
+          if (hostPath.startsWith(pattern.replace(/^www\./, ""))) return id;
+        } else if (host === pattern || host.endsWith("." + pattern)) {
+          return id;
+        }
+      }
+    }
+    return null;
+  }
+
+  // --- Register (once) a synthetic provider for an unrecognized host so
+  // adopt() can still gate it. The host stands in for both label and
+  // operator: the placeholder reads "external content from <host>" /
+  // "connects your browser to <host>" — honest about what little we know.
+  // The per-host id means a "remember" tick scopes to that host alone,
+  // same as any first-class provider. iframeAttrs is deliberately empty:
+  // we don't know what the embed needs, so we add nothing.
+  function ensureExternalProvider(host) {
+    const clean = host.replace(/^www\./, "");
+    const id = "external-" + clean.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    if (!opts.providers[id]) {
+      opts.providers[id] = { label: clean, operator: clean, iframeAttrs: {} };
+    }
+    return id;
   }
 
   // --- Styles. Injected once. Scoped under .consent-embed* and
@@ -910,6 +966,87 @@ export default function easyCookieConsent(userOptions = {}) {
     container.replaceChildren(body);
   }
 
+  // --- Adopt raw third-party embed markup. The headline use case: a CMS
+  // editor pastes a `<iframe src="https://youtube.com/embed/…">` (or an
+  // `<embed>` / `<object>`) into a field, with no knowledge of the
+  // consent-embed convention. adopt() rewrites those into gated
+  // placeholders so the src never reaches a live document until consent.
+  //
+  // Why this is a FULL guarantee, not best-effort: the HTML is parsed with
+  // DOMParser into an inert document and imported detached. A browser only
+  // fetches an iframe/embed src once the node is connected to the live
+  // browsing context — which never happens here, because we strip the src
+  // into data-embed and swap in a placeholder *before* the returned
+  // fragment is inserted. Contrast a scan of the already-rendered page:
+  // there the parser fired the request during initial parse, before any JS
+  // ran, and no cleanup can un-send it. So adopt() is the right tool for
+  // CLIENT-rendered content (headless CMS, SPA, fetched HTML). For embeds
+  // baked into server-delivered HTML, the rewrite has to happen upstream,
+  // before the bytes leave the server.
+  //
+  // What gets gated — <iframe[src]>, <embed[src]>, <object[data]> — but
+  // only when the URL is CROSS-ORIGIN. The GDPR trigger is contacting a
+  // third-party host, not the element type: a same-origin embed (your own
+  // PDF, a local SVG via <object>) contacts no one, and data:/blob: URIs
+  // have no host at all — both pass through untouched. Opt out a single
+  // node with `data-consent-ignore`; opt out whole hosts with
+  // `options.ignoreHosts` (a payment provider you've cleared, your own CDN
+  // subdomain).
+  //
+  // Returns a DocumentFragment with placeholders already wired. Append it
+  // (or replaceChildren) — do NOT serialize it back to a string via
+  // innerHTML: that drops the click handlers AND, for any embed the
+  // visitor already consented to, would re-introduce a live src into the
+  // page markup.
+  function adopt(html) {
+    injectStyles();
+
+    const ignoreHosts = opts.ignoreHosts || [];
+    // Parse inert (no resource loads), then import into the live document
+    // detached so processEmbeds can build placeholders with live listeners.
+    const parsed = new DOMParser().parseFromString(String(html), "text/html");
+    const root = document.importNode(parsed.body, true);
+
+    for (const el of root.querySelectorAll("iframe[src], embed[src], object[data]")) {
+      if (el.hasAttribute("data-consent-ignore")) continue;
+      const rawUrl = el.getAttribute("src") || el.getAttribute("data");
+      if (!rawUrl) continue;
+
+      let url;
+      try { url = new URL(rawUrl, location.href); } catch { continue; }
+
+      // No host → data:/blob:/about: — contacts no third party, leave it.
+      // Same-origin → the host's own content, also no third-party contact.
+      if (!url.host || url.host === location.host) continue;
+
+      const bareHost = url.host.replace(/^www\./, "");
+      if (ignoreHosts.some((h) => bareHost === h || bareHost.endsWith("." + h))) continue;
+
+      const providerId = providerForUrl(url.href) || ensureExternalProvider(url.host);
+
+      const gateNode = document.createElement("div");
+      gateNode.className = "consent-embed";
+      gateNode.dataset.provider = providerId;
+      gateNode.dataset.embed = url.href;
+
+      // Carry the embed's intrinsic ratio so the placeholder reserves the
+      // right box and the swap doesn't reflow. Only when both dims are
+      // numeric (px); percentage/auto sizing falls back to the CSS default.
+      const w = parseInt(el.getAttribute("width"), 10);
+      const h = parseInt(el.getAttribute("height"), 10);
+      if (w > 0 && h > 0) gateNode.style.aspectRatio = w + " / " + h;
+
+      el.replaceWith(gateNode);
+    }
+
+    // Render placeholders / wire click handlers on the detached tree, then
+    // hand back a fragment for the caller to insert.
+    processEmbeds(root);
+    const fragment = document.createDocumentFragment();
+    fragment.append(...root.childNodes);
+    return fragment;
+  }
+
   function reset() {
     // Wipe all consent state. Used by a "revoke consent" link on the
     // privacy page. Iframes already rendered on the current page stay
@@ -973,6 +1110,11 @@ export default function easyCookieConsent(userOptions = {}) {
     // API, mount an embedded form, kick off a calendar feed. See
     // README → "Imperative gate (custom render after consent)".
     gate,
+    // Rewrite raw third-party embed markup (a CMS-pasted <iframe>,
+    // <embed>, or <object>) into gated placeholders before it hits the
+    // page. Returns a DocumentFragment to append — never contacts the
+    // third party until consent. See README → "Adopting raw embeds".
+    adopt,
   };
 }
 

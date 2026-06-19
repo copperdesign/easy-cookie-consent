@@ -92,6 +92,18 @@
 	</div>
 
 	<div class="section">
+		<h2>Raw CMS embed (adopt)</h2>
+		<p style="color:#666; font-size:0.9rem; line-height:1.5;">
+			A raw <code>&lt;iframe&gt;</code> as a CMS editor would paste it —
+			no <code>consent-embed</code> class, no <code>data-provider</code>.
+			<code>consent.adopt()</code> rewrites it into a gate, resolving the
+			YouTube provider from the URL host. The host is never contacted
+			until you click.
+		</p>
+		<div id="adopt-target"></div>
+	</div>
+
+	<div class="section">
 		<h2>Deferred Google Fonts</h2>
 		<p style="color:#666; font-size:0.9rem; line-height:1.5;">
 			Inter is configured via the <code>googleFonts</code> option below.
@@ -153,6 +165,13 @@
 	});
 
 	renderState();
+
+	// Demoes adopt(): a raw iframe string, exactly as pasted into a CMS
+	// field, rewritten into a gate before it ever reaches the live DOM.
+	const rawEmbed = '<iframe width="560" height="315" '
+		+ 'src="https://www.youtube.com/embed/Ky417-3HDKs?rel=0" '
+		+ 'title="YouTube video player" allowfullscreen></iframe>';
+	document.getElementById('adopt-target').replaceChildren(consent.adopt(rawEmbed));
 
 	document.getElementById('show').addEventListener('click', () => consent.show());
 	document.getElementById('reset').addEventListener('click', () => {
