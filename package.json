@@ -1,6 +1,6 @@
 {
   "name": "@copperdesign/easy-cookie-consent",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Click-to-load consent gate for third-party embeds (YouTube, Vimeo, SoundCloud, Google Maps) plus an optional global consent modal and deferred Google Fonts / arbitrary-callback hooks. Zero dependencies, single file, multi-language.",
   "type": "module",
   "main": "index.js",
