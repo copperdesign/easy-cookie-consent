@@ -80,7 +80,7 @@ Returns a controller object:
 
 | Option | Default | Description |
 |---|---|---|
-| `privacyHref` | `'#privacy'` | The privacy-policy URL shown in the modal body and each per-embed hint. |
+| `privacyHref` | `'#privacy'` | The privacy-policy URL shown in the modal body and each per-embed hint. When it's a real route (not a `#fragment`), the modal auto-suppresses while the visitor is on that page — see [Suppressing the modal](#suppressing-the-modal-on-a-single-page). |
 | `language` | `null` | `null` = auto-detect from `<html lang>`. Pass an ISO code (`'en'`, `'de'`) to force. |
 | `fallbackLanguage` | `'en'` | Used when neither `language` nor `<html lang>` resolves to a built-in language. |
 | `showModal` | `true` | Whether the modal auto-shows on init. Set `false` to run the plugin in embed-only mode — per-embed gates still work, no global dialog is ever shown. See [Embed-only mode](#embed-only-mode-no-global-modal). |
@@ -331,7 +331,9 @@ This is the right config when:
 
 ### Suppressing the modal on a single page
 
-When you do want the modal on most pages but not on, say, the privacy policy itself (surfacing a consent dialog over the policy the visitor came to read is its own UX loop), add the marker attribute to that page's `<body>`:
+The **privacy policy itself is handled automatically**: when `privacyHref` points to a real route (not a `#fragment`) and the visitor is on that page, the modal doesn't auto-show — surfacing a consent dialog over the policy the visitor came to read (the page the modal links to) is its own UX loop. Matched on origin + pathname; only the auto-show is suppressed, so an explicit `consent.show()` from a "consent settings" link on that page still opens it.
+
+For any *other* page where you want the modal gone — an imprint, a checkout step — add the marker attribute to that page's `<body>`:
 
 ```html
 <body data-cookie-consent-no-prompt>

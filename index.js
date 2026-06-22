@@ -51,7 +51,9 @@ const DEFAULT_OPTIONS = {
 
   // The privacy-policy URL surfaced inside the modal body and per-embed
   // placeholders. Use whatever route your site has. Hash-only is fine for
-  // demos.
+  // demos. When it points to a real route (not a "#fragment"), the modal
+  // auto-suppresses on that page so its backdrop never covers the policy
+  // the visitor came to read — see onPrivacyPage().
   privacyHref: "#privacy",
 
   // null  → auto-detect from <html lang>; fall back to `fallbackLanguage`.
@@ -404,6 +406,25 @@ export default function easyCookieConsent(userOptions = {}) {
 
   function hasGlobalConsent() { return storeRead(KEY_GLOBAL) === "1"; }
   function hasDeclinedThisSession() { return sessionRead(KEY_DECLINED) === "1"; }
+
+  // Are we currently *on* the privacy page that the modal links to? If so,
+  // the auto-show is suppressed (see boot) — the modal's whole point on
+  // this page would be to send the visitor here to read the policy, and a
+  // backdrop sitting over that policy defeats it. Matched on origin +
+  // pathname (trailing slash normalized); a pure-fragment privacyHref
+  // ("#privacy") denotes a section of the current page, not a dedicated
+  // route, so it never counts — use noPromptAttribute for that case.
+  // Only the auto-show is gated; an explicit consent.show() still works
+  // here, so a "consent settings" link on the privacy page is unaffected.
+  function onPrivacyPage() {
+    const href = opts.privacyHref;
+    if (!href || href.charAt(0) === "#") return false;
+    let target;
+    try { target = new URL(href, location.href); } catch { return false; }
+    if (target.host !== location.host) return false;
+    const norm = (p) => p.replace(/\/+$/, "") || "/";
+    return norm(target.pathname) === norm(location.pathname);
+  }
   function hasConsent(providerId) {
     if (hasGlobalConsent()) return true;
     return storeRead(providerId) === "1";
@@ -1086,6 +1107,7 @@ export default function easyCookieConsent(userOptions = {}) {
   if (
     opts.showModal
     && !suppressedByAttr
+    && !onPrivacyPage()
     && !hasGlobalConsent()
     && !hasDeclinedThisSession()
   ) {
