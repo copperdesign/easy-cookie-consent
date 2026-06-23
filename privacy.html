@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Privacy policy — easy-cookie-consent</title>
+	<link rel="stylesheet" href="example.css">
+</head>
+<body>
+
+<main class="page">
+	<h1>Privacy policy</h1>
+
+	<p class="note">
+		<strong>Notice the modal didn't pop?</strong> You arrived here without
+		having consented yet, and <code>showModal</code> is on — but
+		<code>privacyHref</code> resolves to this very page, so the auto-show
+		is suppressed. A consent backdrop over the policy you came to read
+		would be its own dark pattern. The explicit button below still opens
+		the dialog on demand.
+	</p>
+
+	<div class="controls">
+		<button id="settings">Consent settings</button>
+	</div>
+
+	<div class="prose">
+		<h2>What this demo collects</h2>
+		<p>
+			Nothing. This is the example harness for
+			<code>@copperdesign/easy-cookie-consent</code>. No analytics, no
+			tracking, no third-party calls until you click an embed or accept
+			in the consent dialog.
+		</p>
+
+		<h2>Third-party embeds</h2>
+		<p>
+			The demo embeds YouTube and Google Maps. Their iframes are never
+			added to the page until you consent — so YouTube (Google LLC) and
+			Google Maps (Google LLC) receive no request, and set no cookies,
+			before that point.
+		</p>
+
+		<h2>Deferred loads</h2>
+		<p>
+			Google Fonts (Inter) is injected only after you grant global
+			consent. Before then the page uses a local system fallback.
+		</p>
+
+		<h2>Your choices</h2>
+		<p>
+			Use the consent settings button above to review or change what
+			you've allowed. Per-embed "remember" choices live in
+			<code>localStorage</code>; a "Not now" dismissal is session-only.
+		</p>
+	</div>
+
+	<a class="backlink" href="example.html">← Back to the demo</a>
+</main>
+
+<footer>
+	easy-cookie-consent — <a href="https://github.com/copperdesign/easy-cookie-consent">github.com/copperdesign/easy-cookie-consent</a>
+</footer>
+
+<script type="module">
+	import easyCookieConsent from './index.js';
+	import consentOptions from './consent-options.js';
+
+	// Same options as example.html (shared module). Because privacyHref
+	// resolves to this page, the boot-time auto-show is skipped here — but
+	// the controller is fully live, so the button below can open it.
+	window.consent = easyCookieConsent({ ...consentOptions });
+
+	document.getElementById('settings')
+		.addEventListener('click', () => consent.show());
+</script>
+
+</body>
+</html>

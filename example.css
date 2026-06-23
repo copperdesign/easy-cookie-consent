@@ -1,0 +1,96 @@
+/* Shared styling for the demo pages (example.html + privacy.html).
+   Not part of the published package — the module injects its own scoped
+   CSS; this just dresses the harness. */
+
+body {
+	margin: 0;
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	color: #1a1a1a;
+	background: #fafafa;
+	-webkit-font-smoothing: antialiased;
+}
+.page {
+	max-width: 44rem;
+	margin: 0 auto;
+	padding: 4rem 2rem 6rem;
+}
+h1 {
+	font-size: 2rem;
+	letter-spacing: -0.02em;
+	font-weight: 600;
+	margin: 0 0 0.5rem;
+}
+.lede {
+	color: #666;
+	line-height: 1.5;
+	margin: 0 0 3rem;
+}
+.section {
+	margin: 3rem 0;
+}
+.section h2 {
+	font-size: 0.85rem;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #666;
+	font-weight: 600;
+	margin: 0 0 1rem;
+}
+.controls {
+	display: flex; gap: 0.75rem; flex-wrap: wrap;
+}
+.controls button {
+	appearance: none;
+	border: 1px solid #111;
+	background: transparent;
+	color: #111;
+	font: inherit;
+	font-size: 0.9rem;
+	padding: 0.55rem 1.25rem;
+	border-radius: 999px;
+	cursor: pointer;
+	letter-spacing: 0.01em;
+	transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+.controls button:hover {
+	background: #111; color: #fff;
+}
+footer {
+	color: #999;
+	font-size: 0.85rem;
+	padding: 2rem;
+	text-align: center;
+}
+footer a { color: inherit; }
+
+/* Privacy page — long-form prose register, plus the "why no modal" note. */
+.prose {
+	color: #333;
+	line-height: 1.6;
+}
+.prose h2 {
+	font-size: 1.1rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	margin: 2.5rem 0 0.75rem;
+	text-transform: none;
+	color: #1a1a1a;
+}
+.prose p { margin: 0 0 1rem; }
+.note {
+	background: #f0f4f0;
+	border: 1px solid #d8e2d8;
+	border-radius: 0.5rem;
+	padding: 1rem 1.25rem;
+	color: #2f4030;
+	line-height: 1.5;
+	font-size: 0.9rem;
+	margin: 0 0 2.5rem;
+}
+.note strong { color: #1d291e; }
+.backlink {
+	display: inline-block;
+	margin-top: 2rem;
+	color: #666;
+	font-size: 0.9rem;
+}

@@ -4,68 +4,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>easy-cookie-consent — example</title>
-	<style>
-		body {
-			margin: 0;
-			font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-			color: #1a1a1a;
-			background: #fafafa;
-			-webkit-font-smoothing: antialiased;
-		}
-		.page {
-			max-width: 44rem;
-			margin: 0 auto;
-			padding: 4rem 2rem 6rem;
-		}
-		h1 {
-			font-size: 2rem;
-			letter-spacing: -0.02em;
-			font-weight: 600;
-			margin: 0 0 0.5rem;
-		}
-		.lede {
-			color: #666;
-			line-height: 1.5;
-			margin: 0 0 3rem;
-		}
-		.section {
-			margin: 3rem 0;
-		}
-		.section h2 {
-			font-size: 0.85rem;
-			letter-spacing: 0.04em;
-			text-transform: uppercase;
-			color: #666;
-			font-weight: 600;
-			margin: 0 0 1rem;
-		}
-		.controls {
-			display: flex; gap: 0.75rem; flex-wrap: wrap;
-		}
-		.controls button {
-			appearance: none;
-			border: 1px solid #111;
-			background: transparent;
-			color: #111;
-			font: inherit;
-			font-size: 0.9rem;
-			padding: 0.55rem 1.25rem;
-			border-radius: 999px;
-			cursor: pointer;
-			letter-spacing: 0.01em;
-			transition: background-color 150ms ease-out, color 150ms ease-out;
-		}
-		.controls button:hover {
-			background: #111; color: #fff;
-		}
-		footer {
-			color: #999;
-			font-size: 0.85rem;
-			padding: 2rem;
-			text-align: center;
-		}
-		footer a { color: inherit; }
-	</style>
+	<link rel="stylesheet" href="example.css">
 </head>
 <body>
 
@@ -130,6 +69,19 @@
 		</p>
 		<p id="consent-state" style="color:#666; font-size:0.85rem; margin-top:0.5rem;"></p>
 	</div>
+
+	<div class="section">
+		<h2>Privacy page (modal suppression)</h2>
+		<p style="color:#666; font-size:0.9rem; line-height:1.5;">
+			<code>privacyHref</code> points to a real route
+			(<code>privacy.html</code>), so the modal links there — and
+			auto-suppresses once you're on it. Reset consent first, then open
+			the policy: the dialog stays out of the way so you can actually
+			read it. The privacy page still has a manual "consent settings"
+			button, proving <code>consent.show()</code> works there.
+		</p>
+		<p><a href="privacy.html">Read the privacy policy →</a></p>
+	</div>
 </main>
 
 <footer>
@@ -138,6 +90,7 @@
 
 <script type="module">
 	import easyCookieConsent from './index.js';
+	import consentOptions from './consent-options.js';
 
 	// Bind the controller to window so the buttons below can reach it
 	// without import scope juggling. In a real site you'd typically keep
@@ -151,11 +104,9 @@
 	};
 
 	window.consent = easyCookieConsent({
-		privacyHref: '#privacy',
-		// Demoes the deferred Google Fonts loader. Before consent, the demo
-		// line above renders in Helvetica Neue; after consent the Inter
-		// stylesheet is injected and the line repaints.
-		googleFonts: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap',
+		// privacyHref + googleFonts come from the shared config so this page
+		// and privacy.html can't disagree on the privacy route.
+		...consentOptions,
 		// Demoes the generic deferred-load callback. In a real site this
 		// would inject analytics, embedded forms, etc.
 		onConsent: () => {
