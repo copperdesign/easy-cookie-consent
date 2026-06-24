@@ -68,7 +68,7 @@ Returns a controller object:
 | Method | What it does |
 |---|---|
 | `consent.show()` | Open the modal manually. Useful for a footer "consent settings" link or for re-prompting after the visitor closed it with Esc. |
-| `consent.optInAll()` | Writes the global opt-in and swaps in every placeholder currently on the page. Same as clicking the modal's primary button. |
+| `consent.optInAll()` | Writes the global opt-in, swaps in every declarative placeholder currently on the page, and fires the `onLoad` of any pending [`gate()`](#imperative-gate-custom-render-after-consent) still showing its placeholder. Same as clicking the modal's primary button. |
 | `consent.optOutAll()` | Clears the global opt-in and writes a tab-scoped `declined` flag to `sessionStorage`, so the modal stays out of the way for the rest of the visit but returns in a fresh tab. Same as the modal's "Not now" button. |
 | `consent.reset()` | Wipes **all** consent state (global plus every per-provider key). Use for a "revoke consent" link on the privacy page. Iframes already loaded on the current page stay loaded — a reload re-gates them. |
 | `consent.teardown()` | Removes injected styles and the modal node if open. Idempotent. Use in SPAs when the host element is being unmounted. |
@@ -267,6 +267,7 @@ What `gate()` handles:
 
 - Renders the same placeholder UI the iframe-swap flow renders — same i18n strings, same "remember this provider" checkbox, same per-provider `localStorage` key.
 - Recognizes prior consent. If the visitor has already opted in (per-provider or globally), `onLoad(container)` fires synchronously and no placeholder UI flashes.
+- Reacts to a *later* global opt-in. While a gate is still showing its placeholder, a global opt-in — the modal's "Allow all", `optInAll()`, or a matching `optIn(provider)` — fires `onLoad(container)` automatically, exactly as it swaps in declarative iframes. The visitor doesn't have to click the gate's own button too. `onLoad` runs at most once per gate regardless of which path reaches it.
 - Adds `.consent-embed`, `.consent-embed--<provider>`, and `.consent-embed--gated` to the container so the injected CSS applies. `--gated` drops the default fixed height because the host container owns sizing (a `<dialog>`, a flex slot, an aspect-ratio'd wrapper, etc.).
 - Adds `.consent-embed--loaded` to the container before calling `onLoad`, so any custom CSS targeting the loaded state still applies.
 
