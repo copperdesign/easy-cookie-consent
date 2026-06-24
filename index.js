@@ -1,4 +1,4 @@
-/*! easy-cookie-consent — v0.3.3 - 2026-06-15
+/*! easy-cookie-consent — v0.5.1 - 2026-06-24
  * https://copperdesign.github.io/
  *
  * Copyright (c) 2026 Christian Fillies;
@@ -378,6 +378,16 @@ export default function easyCookieConsent(userOptions = {}) {
   // page that wants the effects to fire again after teardown should
   // re-initialize the controller.
   let consentEffectsFired = false;
+
+  // Imperative gate()s still showing a placeholder. The declarative
+  // iframe-swap path is re-scanned straight from the DOM by processEmbeds(),
+  // but a gate()'d container carries no data-embed for that scan to find —
+  // its load action lives in a host-supplied onLoad closure. We hold those
+  // closures here so a later global opt-in (modal "Allow all", optInAll(),
+  // or a matching optIn(provider)) fires them too. Without this, a gate()'d
+  // embed would sit as a placeholder even after the visitor consented to
+  // everything, and only its own button would load it.
+  const pendingGates = [];
 
   // --- Storage (private-mode-safe; failures degrade to "no prior consent",
   // which is the safe direction.)
@@ -897,8 +907,10 @@ export default function easyCookieConsent(userOptions = {}) {
     storeWrite(KEY_GLOBAL, "1");
     // A prior "not now" no longer reflects what the visitor wants.
     sessionClear(KEY_DECLINED);
-    // Swap in any embeds already rendered as placeholders on this page.
+    // Swap in any embeds already rendered as placeholders on this page,
+    // then fire any imperative gate()s now covered by the global opt-in.
     processEmbeds();
+    fireConsentedGates();
     // Deferred loads (analytics, fonts, etc.) fire AFTER storage is
     // written and AFTER placeholders swap — so a callback that introspects
     // the page sees a consistent post-consent state.
@@ -915,6 +927,7 @@ export default function easyCookieConsent(userOptions = {}) {
     if (typeof providerId !== "string" || !providerId) return;
     storeWrite(providerId, "1");
     processEmbeds();
+    fireConsentedGates();
   }
 
   function optOutAll() {
@@ -979,12 +992,30 @@ export default function easyCookieConsent(userOptions = {}) {
       return;
     }
 
-    const body = buildPlaceholderBody(providerId, provider, () => {
-      container.replaceChildren();
-      container.classList.add("consent-embed--loaded");
-      onLoad(container);
-    });
+    const entry = { container, providerId, onLoad };
+    pendingGates.push(entry);
+    const body = buildPlaceholderBody(providerId, provider, () => fireGate(entry));
     container.replaceChildren(body);
+  }
+
+  // Run a pending gate()'s onLoad and retire it. Idempotent: the entry is
+  // removed from the registry first, so neither a second consent event nor
+  // the placeholder's own button can fire onLoad twice.
+  function fireGate(entry) {
+    const i = pendingGates.indexOf(entry);
+    if (i === -1) return;
+    pendingGates.splice(i, 1);
+    entry.container.replaceChildren();
+    entry.container.classList.add("consent-embed--loaded");
+    entry.onLoad(entry.container);
+  }
+
+  // Fire every pending gate the visitor now has consent for. Iterate a copy —
+  // fireGate() mutates pendingGates.
+  function fireConsentedGates() {
+    for (const entry of pendingGates.slice()) {
+      if (hasConsent(entry.providerId)) fireGate(entry);
+    }
   }
 
   // --- Adopt raw third-party embed markup. The headline use case: a CMS
@@ -1080,6 +1111,10 @@ export default function easyCookieConsent(userOptions = {}) {
 
   function teardown() {
     closeModal();
+    // Drop any still-pending gate closures — the controller is going away,
+    // so their onLoads must not fire from a stale consent event. The
+    // placeholder DOM they left behind stays put (see note below).
+    pendingGates.length = 0;
     if (stylesEl) {
       stylesEl.remove();
       stylesEl = null;
