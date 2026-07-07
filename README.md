@@ -52,6 +52,7 @@ Each embed is one element on the page:
 
 - `data-provider` — one of the built-in providers (`youtube`, `vimeo`, `soundcloud`, `gmaps`, `gsheets`, `gcal`), or any provider you've added via `options.providers`.
 - `data-embed` — the iframe URL to load on click. Whatever you'd normally put in `<iframe src>`.
+- `data-title` *(optional but recommended)* — becomes the iframe's `title` attribute, its accessible name (WCAG 4.1.2). Describe the specific content: `data-title="Interview with Jane Doe"`. Without it, the provider label (`YouTube`) is used as a generic fallback. [`adopt()`](#adopting-raw-embeds) carries a pasted iframe's existing `title` over automatically.
 
 The gate handles the rest. The placeholder occupies the same vertical slot the iframe will take, so the page doesn't reflow on click.
 

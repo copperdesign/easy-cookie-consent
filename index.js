@@ -522,6 +522,12 @@ export default function easyCookieConsent(userOptions = {}) {
     for (const [name, value] of Object.entries(provider.iframeAttrs || {})) {
       iframe.setAttribute(name, value);
     }
+    // WCAG 4.1.2: an iframe needs an accessible name, and `title` is the
+    // canonical way to give it one (technique H64). Authors describe the
+    // specific embed via data-title; the provider label ("YouTube") is the
+    // fallback — generic, but an honest name beats no name. Set after the
+    // iframeAttrs loop so the per-embed value always wins.
+    iframe.title = node.dataset.title || provider.label;
     node.replaceChildren(iframe);
     node.classList.add("consent-embed--loaded");
   }
@@ -1087,6 +1093,12 @@ export default function easyCookieConsent(userOptions = {}) {
       const w = parseInt(el.getAttribute("width"), 10);
       const h = parseInt(el.getAttribute("height"), 10);
       if (w > 0 && h > 0) gateNode.style.aspectRatio = w + " / " + h;
+
+      // Preserve the pasted embed's accessible name (WCAG 4.1.2) so the
+      // post-consent iframe keeps the title the CMS author wrote. Without
+      // this the gate would silently *degrade* accessibility on adopt.
+      const title = el.getAttribute("title");
+      if (title) gateNode.dataset.title = title;
 
       el.replaceWith(gateNode);
     }
