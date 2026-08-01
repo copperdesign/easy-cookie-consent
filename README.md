@@ -40,6 +40,10 @@ npm install @copperdesign/easy-cookie-consent
 
 Or vendor [`index.js`](./index.js) — single file, no dependencies, no build step.
 
+### Weebly migrations
+
+If you arrived here from [`weebly-to-firebase`](https://github.com/copperdesign/weebly-to-firebase) (the CLI that rescues a live Weebly site into a static Firebase project), this is the recommended embed-consent layer. That scaffold ships a `src/js/cookie-consent.md` pointer instead of a homegrown module: it deliberately drops Weebly's "single global OK" cookie banner — which loads the YouTube/Maps iframe anyway — in favour of this click-to-load gate. Install as above, then follow the wiring in that doc (or the quickstart at the top of this README). The i18n (EN/DE) and per-embed gates map directly onto the German-client sites that tool targets.
+
 ## Markup contract
 
 Each embed is one element on the page:
