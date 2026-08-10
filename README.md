@@ -14,7 +14,7 @@ The third-party iframe URL never enters the document until the visitor clicks �
      data-embed="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0"></div>
 
 <script type="module">
-  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js';
+  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.3/index.js';
   easyCookieConsent({
     privacyHref: '/privacy.html',
   });
@@ -64,14 +64,14 @@ For a static site with no build step — the quickstart above. jsDelivr and unpk
 
 ```html
 <script type="module">
-  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js';
+  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.3/index.js';
   easyCookieConsent({ privacyHref: '/privacy.html' });
 </script>
 ```
 
 ```
-jsDelivr  https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js
-unpkg     https://unpkg.com/@copperdesign/easy-cookie-consent@0.6.2/index.js
+jsDelivr  https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.3/index.js
+unpkg     https://unpkg.com/@copperdesign/easy-cookie-consent@0.6.3/index.js
 ```
 
 **Pin the exact version.** `@0.6` or an unpinned URL lets the CDN serve a newer build than the one you tested against — and this is the code deciding what loads before the visitor has agreed to anything. That's the wrong module to let float.

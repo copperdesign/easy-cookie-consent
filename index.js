@@ -1,4 +1,4 @@
-/*! easy-cookie-consent — v0.6.2 - 2026-08-10
+/*! easy-cookie-consent — v0.6.3 - 2026-08-10
  * https://copperdesign.github.io/
  *
  * Copyright (c) 2026 Christian Fillies;
