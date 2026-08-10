@@ -14,14 +14,14 @@ The third-party iframe URL never enters the document until the visitor clicks �
      data-embed="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0"></div>
 
 <script type="module">
-  import easyCookieConsent from '@copperdesign/easy-cookie-consent';
+  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js';
   easyCookieConsent({
     privacyHref: '/privacy.html',
   });
 </script>
 ```
 
-That's the whole quickstart. The embed renders as a styled "Load video" placeholder; click it and the iframe is built in place.
+That's the whole quickstart — paste it into any HTML file and open it. The embed renders as a styled "Load video" placeholder; click it and the iframe is built in place. If you're running a bundler, [install from npm](#install) and import the package by name instead.
 
 ## What it does
 
@@ -34,20 +34,17 @@ That's the whole quickstart. The embed renders as a styled "Load video" placehol
 
 ## Install
 
+With a bundler or an import map:
+
 ```sh
 npm install @copperdesign/easy-cookie-consent
 ```
 
-Or skip the install and import the published package straight from a CDN — it's an ES module with no dependencies, so the browser needs nothing else:
-
-```html
-<script type="module">
-  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js';
-  easyCookieConsent({ privacyHref: '/privacy.html' });
-</script>
+```js
+import easyCookieConsent from '@copperdesign/easy-cookie-consent';
 ```
 
-Pin the exact version, as above. `@0.6` or an unpinned URL lets jsDelivr serve a newer build than the one you tested against — on a consent gate, that's a change to what loads before the visitor has agreed to anything. unpkg (`https://unpkg.com/@copperdesign/easy-cookie-consent@0.6.2/index.js`) works the same way if you prefer it.
+Without one, use the CDN URL from the quickstart above — it's an ES module with no dependencies, so the browser needs nothing else. Pin the exact version there rather than `@0.6` or an unpinned URL: a floating range lets the CDN serve a newer build than the one you tested, and on a consent gate that's a change to what loads before the visitor has agreed to anything. unpkg (`https://unpkg.com/@copperdesign/easy-cookie-consent@0.6.2/index.js`) works the same way if you prefer it.
 
 ### Weebly migrations
 
