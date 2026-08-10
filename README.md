@@ -34,7 +34,11 @@ That's the whole quickstart — paste it into any HTML file and open it. The emb
 
 ## Install
 
-With a bundler or an import map:
+Two ways in. Both load the same file — the published `index.js` — so nothing else in this README changes between them.
+
+### From npm
+
+For a bundler (Vite, esbuild, Rollup, webpack), a Node-resolved toolchain, or a page with an import map:
 
 ```sh
 npm install @copperdesign/easy-cookie-consent
@@ -42,9 +46,35 @@ npm install @copperdesign/easy-cookie-consent
 
 ```js
 import easyCookieConsent from '@copperdesign/easy-cookie-consent';
+
+easyCookieConsent({ privacyHref: '/privacy.html' });
 ```
 
-Without one, use the CDN URL from the quickstart above — it's an ES module with no dependencies, so the browser needs nothing else. Pin the exact version there rather than `@0.6` or an unpinned URL: a floating range lets the CDN serve a newer build than the one you tested, and on a consent gate that's a change to what loads before the visitor has agreed to anything. unpkg (`https://unpkg.com/@copperdesign/easy-cookie-consent@0.6.2/index.js`) works the same way if you prefer it.
+The bare specifier `@copperdesign/easy-cookie-consent` resolves from `node_modules/`. A browser can't resolve it on its own, so this path needs either a bundler or an import map:
+
+```html
+<script type="importmap">
+  { "imports": { "@copperdesign/easy-cookie-consent": "/node_modules/@copperdesign/easy-cookie-consent/index.js" } }
+</script>
+```
+
+### From a CDN
+
+For a static site with no build step — the quickstart above. jsDelivr and unpkg both serve the npm package directly:
+
+```html
+<script type="module">
+  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js';
+  easyCookieConsent({ privacyHref: '/privacy.html' });
+</script>
+```
+
+```
+jsDelivr  https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js
+unpkg     https://unpkg.com/@copperdesign/easy-cookie-consent@0.6.2/index.js
+```
+
+**Pin the exact version.** `@0.6` or an unpinned URL lets the CDN serve a newer build than the one you tested against — and this is the code deciding what loads before the visitor has agreed to anything. That's the wrong module to let float.
 
 ### Weebly migrations
 
