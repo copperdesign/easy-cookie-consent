@@ -30,7 +30,7 @@ That's the whole quickstart. The embed renders as a styled "Load video" placehol
 - **Per-provider remember.** Each gate has an opt-in "remember this provider" checkbox. Persisted in `localStorage`.
 - **Deferred Google Fonts.** Pass one or more Google Fonts URLs and the plugin injects the `<link rel="stylesheet">` only after consent. Same for any other deferred work via the `onConsent` callback.
 - **i18n built in.** English and German shipped; add any language by passing a `strings.<lang>` table.
-- **Zero dependencies, ~6 KB minified, one file.** Drop in via npm or vendor [`index.js`](./index.js) directly.
+- **Zero dependencies, ~6 KB minified, one file.** Install from npm, or import straight from the CDN with no build step at all.
 
 ## Install
 
@@ -38,7 +38,16 @@ That's the whole quickstart. The embed renders as a styled "Load video" placehol
 npm install @copperdesign/easy-cookie-consent
 ```
 
-Or vendor [`index.js`](./index.js) — single file, no dependencies, no build step.
+Or skip the install and import the published package straight from a CDN — it's an ES module with no dependencies, so the browser needs nothing else:
+
+```html
+<script type="module">
+  import easyCookieConsent from 'https://cdn.jsdelivr.net/npm/@copperdesign/easy-cookie-consent@0.6.2/index.js';
+  easyCookieConsent({ privacyHref: '/privacy.html' });
+</script>
+```
+
+Pin the exact version, as above. `@0.6` or an unpinned URL lets jsDelivr serve a newer build than the one you tested against — on a consent gate, that's a change to what loads before the visitor has agreed to anything. unpkg (`https://unpkg.com/@copperdesign/easy-cookie-consent@0.6.2/index.js`) works the same way if you prefer it.
 
 ### Weebly migrations
 
