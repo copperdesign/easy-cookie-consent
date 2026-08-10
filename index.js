@@ -42,7 +42,7 @@
 // a new provider without re-declaring the whole table.
 // ---------------------------------------------------------------------------
 
-const DEFAULT_OPTIONS = {
+const DEFAULT_OPTIONS  = {
   // localStorage key prefix. Entries are written as
   // `<storagePrefix><name>` — e.g. "cookieConsent:global",
   // "cookieConsent:youtube". Change this if you have a legacy prefix to
@@ -240,6 +240,50 @@ const DEFAULT_OPTIONS = {
         allowfullscreen: "",
       },
     },
+    mailchimp: {
+      label: "Mailchimp",
+      operator: "Intuit Inc., USA",
+      // Two different embeds ship under this name and only one is an iframe.
+      // `data-embed` covers the hosted form (`<account>.<dc>.list-manage.com/
+      // subscribe?u=…&id=…`, or its mailchi.mp / eepurl.com short forms). The
+      // *classic* embed code Mailchimp's form builder hands you is a plain
+      // <form> plus mc-validate.js — no iframe to gate, so route that one
+      // through gate(provider: "mailchimp") and inject the form in onLoad.
+      hosts: ["list-manage.com", "mailchi.mp", "eepurl.com"],
+      iframeAttrs: {
+        frameborder: "0",
+        // The hosted form is a full page and sizes itself unpredictably once
+        // validation errors expand it; let it scroll rather than clip.
+        scrolling: "auto",
+        style: "border:none",
+      },
+    },
+    googlefonts: {
+      label: "Google Fonts",
+      operator: "Google LLC, USA",
+      // The one built-in with no iframe behind it. It's in the table so the
+      // deferred font load has a real provider name — a "load web fonts"
+      // gate(), its own remember-tick, hasConsent("googlefonts") — instead
+      // of being an anonymous side effect of the global yes. No `hosts`:
+      // adopt() resolves iframe srcs, and a stylesheet is never one.
+      iframeAttrs: {},
+    },
+    wufoo: {
+      label: "Wufoo",
+      operator: "SurveyMonkey Inc., USA",
+      // Every account embeds from its own subdomain (`<account>.wufoo.com`),
+      // so the bare host entry is doing real work here — a literal match
+      // would never fire. wufoo.eu is the EU-hosted variant.
+      hosts: ["wufoo.com", "wufoo.eu"],
+      iframeAttrs: {
+        frameborder: "0",
+        scrolling: "no",
+        // Wufoo's own embed snippet ships allowtransparency so a form can sit
+        // on the host page's background instead of a white block.
+        allowtransparency: "true",
+        style: "border:none",
+      },
+    },
   },
 
   // Per-language copy. Functions are used where text wraps a value
@@ -336,6 +380,11 @@ const DEFAULT_OPTIONS = {
 const KEY_GLOBAL = "global";
 const KEY_DECLINED = "declined";
 
+// The provider the deferred Google Fonts load is keyed to. Named rather
+// than inlined because three places have to agree on it: the provider
+// table, the storage key a remember-tick writes, and runGoogleFonts().
+const FONTS_PROVIDER = "googlefonts";
+
 // ---------------------------------------------------------------------------
 // Public entry point
 //
@@ -371,13 +420,18 @@ export default function easyCookieConsent(userOptions = {}) {
   let modalKeyHandler = null;
   let modalLastFocused = null;
 
-  // onConsent + googleFonts are fire-once-per-instance. Tracked here so a
-  // restored-on-boot consent followed by an explicit optInAll() doesn't
-  // double-fire — and so a per-provider remember-tick never accidentally
-  // triggers global side effects. teardown() doesn't reset this; a host
+  // onConsent is fire-once-per-instance. Tracked here so a restored-on-boot
+  // consent followed by an explicit optInAll() doesn't double-fire — and so
+  // a per-provider remember-tick never accidentally triggers a global side
+  // effect the host page can't scope. teardown() doesn't reset this; a host
   // page that wants the effects to fire again after teardown should
   // re-initialize the controller.
   let consentEffectsFired = false;
+
+  // The font load gets its own flag because, unlike onConsent, it has a
+  // named third party behind it (FONTS_PROVIDER) and can therefore be
+  // released by that provider's own remember-tick — see runGoogleFonts().
+  let googleFontsInjected = false;
 
   // Imperative gate()s still showing a placeholder. The declarative
   // iframe-swap path is re-scanned straight from the DOM by processEmbeds(),
@@ -512,13 +566,23 @@ export default function easyCookieConsent(userOptions = {}) {
   }
 
   // --- Swap the placeholder for the real iframe. The iframe is built
-  // fresh (the URL has never been in the DOM until now), so we apply the
-  // provider's standard attribute set explicitly.
+  // fresh (the URL has never been in the DOM until now), so every attribute
+  // is applied here, in three tiers: module baseline, then the provider's
+  // iframeAttrs, then the per-embed title. Later writes win, which is what
+  // makes each tier overridable by the one below it.
   function swapInIframe(node, provider) {
     const iframe = document.createElement("iframe");
     iframe.src = node.dataset.embed;
     iframe.width = "100%";
     iframe.height = "100%";
+    // Since late 2025 YouTube refuses an embed it can't attribute to a host
+    // page ("Video unavailable — error 153"). Left to the document, the
+    // referrer can go missing entirely: a `Referrer-Policy: no-referrer`
+    // header or a <meta name="referrer"> strips it for every embed at once,
+    // and the element attribute is the only lever that outranks them. A
+    // baseline rather than nine provider-table entries, so a tenth provider
+    // inherits it instead of shipping broken until that host enforces too.
+    iframe.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
     for (const [name, value] of Object.entries(provider.iframeAttrs || {})) {
       iframe.setAttribute(name, value);
     }
@@ -857,7 +921,7 @@ export default function easyCookieConsent(userOptions = {}) {
     if (consentEffectsFired) return;
     consentEffectsFired = true;
 
-    if (opts.googleFonts) injectGoogleFonts(opts.googleFonts);
+    runGoogleFonts();
 
     if (typeof opts.onConsent === "function") {
       // Failures here shouldn't blow up the consent flow itself — the
@@ -871,6 +935,19 @@ export default function easyCookieConsent(userOptions = {}) {
         }
       }
     }
+  }
+
+  // --- Google Fonts, released by EITHER global consent or the fonts
+  // provider's own key. hasConsent() already folds the global case in, so
+  // one check covers both. Split out from runConsentEffects because the two
+  // have different scopes: onConsent is an opaque host callback that can
+  // only honestly answer to a site-wide yes, while the font load is one
+  // identifiable third party a visitor can tick on its own.
+  function runGoogleFonts() {
+    if (googleFontsInjected || !opts.googleFonts) return;
+    if (!hasConsent(FONTS_PROVIDER)) return;
+    googleFontsInjected = true;
+    injectGoogleFonts(opts.googleFonts);
   }
 
   // Inject preconnect (once) + a `<link rel="stylesheet">` per URL.
@@ -934,6 +1011,9 @@ export default function easyCookieConsent(userOptions = {}) {
     storeWrite(providerId, "1");
     processEmbeds();
     fireConsentedGates();
+    // optIn(FONTS_PROVIDER) is the whole point of registering the fonts as a
+    // provider — self-guarded, so calling it for any other id costs nothing.
+    runGoogleFonts();
   }
 
   function optOutAll() {
@@ -1148,6 +1228,10 @@ export default function easyCookieConsent(userOptions = {}) {
   // previous page. Runs BEFORE the modal-show check so the page never
   // shows the consent prompt while simultaneously firing onConsent.
   if (hasGlobalConsent()) runConsentEffects();
+  // A standing remember-tick on the fonts provider releases them on its own,
+  // without the global opt-in that onConsent waits for. Self-guarded, so the
+  // call is a no-op when runConsentEffects() already covered it above.
+  runGoogleFonts();
 
   const suppressedByAttr = document.body
     && document.body.hasAttribute(opts.noPromptAttribute);

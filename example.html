@@ -57,6 +57,15 @@
 		<p id="font-demo" style="font-family: Inter, 'Helvetica Neue', Arial, sans-serif; font-size: 1.5rem; letter-spacing: -0.02em; margin: 1rem 0 0;">
 			The quick brown fox jumps over the lazy dog.
 		</p>
+		<p style="color:#666; font-size:0.9rem; line-height:1.5; margin-top:1rem;">
+			The fonts also have a provider of their own. "Allow fonts only"
+			calls <code>consent.optIn('googlefonts')</code> — the line above
+			repaints in Inter while the embeds stay gated, and the
+			<code>onConsent</code> callback below does <em>not</em> run.
+		</p>
+		<div class="controls">
+			<button id="fonts-only">Allow fonts only</button>
+		</div>
 	</div>
 
 	<div class="section">
@@ -128,6 +137,9 @@
 	document.getElementById('adopt-target').replaceChildren(consent.adopt(rawEmbed));
 
 	document.getElementById('show').addEventListener('click', () => consent.show());
+	document.getElementById('fonts-only').addEventListener('click', () => {
+		consent.optIn('googlefonts');
+	});
 	document.getElementById('reset').addEventListener('click', () => {
 		consent.reset();
 		location.reload();

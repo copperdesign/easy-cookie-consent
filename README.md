@@ -54,11 +54,71 @@ Each embed is one element on the page:
      data-embed="https://www.youtube.com/embed/<ID>?rel=0"></div>
 ```
 
-- `data-provider` — one of the built-in providers (`youtube`, `vimeo`, `soundcloud`, `gmaps`, `gsheets`, `gcal`), or any provider you've added via `options.providers`.
+- `data-provider` — one of the built-in providers (`youtube`, `vimeo`, `soundcloud`, `gmaps`, `gsheets`, `gcal`, `betterplace`, `gooding`, `jotform`, `mailchimp`, `wufoo`), or any provider you've added via `options.providers`. (There's an eleventh, `googlefonts`, with no iframe behind it — see [Deferred loads](#deferred-loads-onconsent--googlefonts).)
 - `data-embed` — the iframe URL to load on click. Whatever you'd normally put in `<iframe src>`.
 - `data-title` *(optional but recommended)* — becomes the iframe's `title` attribute, its accessible name (WCAG 4.1.2). Describe the specific content: `data-title="Interview with Jane Doe"`. Without it, the provider label (`YouTube`) is used as a generic fallback. [`adopt()`](#adopting-raw-embeds) carries a pasted iframe's existing `title` over automatically.
 
 The gate handles the rest. The placeholder occupies the same vertical slot the iframe will take, so the page doesn't reflow on click.
+
+## Legal basis
+
+A gated embed loads **on consent**. That is what the click is, and it settles which legal basis you're operating under:
+
+- **Art. 6 (1)(a) GDPR / DSGVO** — the processing that follows the click (the visitor's IP address and User-Agent reaching YouTube, Google, SoundCloud) is justified by the visitor's consent. Not by anything else.
+- **§ 25 (1) TDDDG** (until May 2024: TTDSG, still the common citation) — the separate hook people miss. Storing information on the visitor's device, or reading information already stored there — cookies, `localStorage`, whatever the embed writes — needs consent in its own right, independently of the GDPR basis for the processing that follows. This is German law implementing the ePrivacy Directive, not a universal rule. Other jurisdictions have their own equivalent — check yours.
+
+### Why not legitimate interest
+
+Ungated, **Art. 6 (1)(f)** — legitimate interest — is what you'd reach for: the embed is part of the content, you never asked, you argue the balance falls your way. That argument exists — for the GDPR half only, and whether it survives a regulator is a different question. § 25 (1) already required consent for anything the embed stores on or reads from the device, gate or no gate, so (f) never covered the whole picture. Nothing here retroactively changes that for a site that keeps loading its embeds ungated.
+
+It stops being available the moment you put a gate in front of the embed. You can't claim you didn't need permission while displaying a button whose entire job is to ask for it. The placeholder is the request; the click is the consent. Choosing this module is choosing (a) — write it down that way. The reasoning behind the design is in [Why this exists](#why-this-exists).
+
+### Deferred loads are the same story
+
+[`onConsent` and `googleFonts`](#deferred-loads-onconsent--googlefonts) release the third parties that aren't iframes — a Google Fonts stylesheet, an analytics tag, an embedded form helper, a calendar feed — at the same moment and for the same reason. Same basis: (a), plus § 25 (1) for whatever the deferred resource then stores on or reads from the device. Google Fonts is worth naming explicitly because it's the easiest one to overlook: served from `fonts.googleapis.com` it transmits the visitor's IP to Google on every pageview, and a German court has awarded damages over exactly that (LG München I, 20 January 2022, Az. 3 O 17493/20). Deferring it puts it under consent; self-hosting takes it out of the question entirely.
+
+### Withdrawal
+
+Consent has to be as easy to withdraw as it was to give — **Art. 7 (3) GDPR**. That's the obligation the [revoke link](#revoke-link) and `consent.reset()` discharge.
+
+### A starter paragraph for your privacy policy
+
+A starting point, not a finished text, and **not legal advice**. It describes what the gate does; the providers you actually embed, their purposes, retention, and any third-country transfer are yours to add and a lawyer's to check. It assumes nothing about the global modal, so it holds in [embed-only mode](#embed-only-mode-no-global-modal) too.
+
+**German**
+
+```text
+Inhalte Dritter (z. B. Videos, Karten) werden auf dieser Website nicht automatisch geladen.
+An ihrer Stelle steht zunächst ein Platzhalter; die Verbindung zum jeweiligen Anbieter wird
+erst hergestellt, wenn Sie den betreffenden Inhalt durch einen Klick ausdrücklich freigeben.
+Weitere Inhalte Dritter ohne eigenen Platzhalter (z. B. extern gehostete Schriftarten) werden
+ebenfalls erst nach Ihrer Einwilligung geladen. Erst dann werden Ihre IP-Adresse und weitere
+Verbindungsdaten an den jeweiligen Anbieter übertragen und gegebenenfalls Informationen auf
+Ihrem Endgerät gespeichert oder ausgelesen.
+Rechtsgrundlage ist Ihre Einwilligung nach Art. 6 Abs. 1 lit. a DSGVO und § 25 Abs. 1 TDDDG
+(vormals TTDSG). Die Einwilligung ist freiwillig, für die Nutzung der übrigen Inhalte dieser
+Website nicht erforderlich und jederzeit mit Wirkung für die Zukunft widerrufbar:
+[Einwilligung widerrufen]. Ohne Einwilligung bleiben die betreffenden Inhalte gesperrt; die
+Website ist im Übrigen uneingeschränkt nutzbar.
+```
+
+**English**
+
+```text
+Third-party content on this site (for example videos and maps) is not loaded automatically.
+A placeholder is shown in its place, and the connection to the provider is established only
+once you release that content with a click. Other third-party resources without a placeholder
+of their own (for example externally hosted web fonts) are likewise loaded only after your
+consent. Only then are your IP address and further connection data transmitted to the provider
+and, where applicable, information stored on or read from your device. The legal basis is your
+consent under Art. 6 (1)(a) GDPR and, in Germany, Section 25 (1) TDDDG (formerly TTDSG).
+Consent is voluntary, is not required in order to use the rest
+of this site, and can be withdrawn at any time with effect for the future: [withdraw consent].
+Without consent the content in question stays blocked; everything else on the site remains
+fully usable.
+```
+
+Using this module does not make a site compliant. It settles one question — which basis the embed load runs on — and leaves the rest to you.
 
 ## API
 
@@ -95,8 +155,8 @@ Returns a controller object:
 | `embedHeights` | `{ default: 300, soundcloud: 100, gmaps: 470 }` | Per-provider placeholder heights in px. Matching the iframe avoids reflow on click. Pass any subset; add `<provider>: <px>` for any new provider you register. |
 | `fontStack` | `'"Helvetica Neue", Helvetica, Arial, sans-serif'` | CSS `font-family` applied to both surfaces. Override for a typographic match with your host page. |
 | `onConsent` | `null` | Callback fired once when global consent becomes true — modal opt-in click, `optInAll()` call, or boot-time restoration of a prior opt-in. Use for analytics, embedded forms, calendar feeds, anything that would transmit visitor data on load. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
-| `googleFonts` | `null` | A single Google Fonts stylesheet URL, or an array of URLs. After consent, the plugin injects each as `<link rel="stylesheet">` and a single preconnect to `fonts.gstatic.com`. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
-| `providers` | (youtube, vimeo, soundcloud, gmaps, gsheets, gcal) | Map of provider definitions. Pass entries to add or override. See below. |
+| `googleFonts` | `null` | A single Google Fonts stylesheet URL, or an array of URLs. After consent, the plugin injects each as `<link rel="stylesheet">` and a single preconnect to `fonts.gstatic.com`. Released by global consent *or* by the `googlefonts` provider's own key. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
+| `providers` | (11 built-ins — see below) | Map of provider definitions. Pass entries to add or override. See below. |
 | `strings` | (`en`, `de`) | Map of localized strings. Pass entries to add or override. See below. |
 
 ### Color tokens
@@ -152,6 +212,10 @@ easyCookieConsent({
 ```
 
 Now `<div class="consent-embed" data-provider="spotify" data-embed="…">` works.
+
+Every iframe the plugin builds gets `referrerpolicy="strict-origin-when-cross-origin"` before your `iframeAttrs` are applied, so a new provider inherits it — as do the synthetic per-host providers [`adopt()`](#adopting-raw-embeds) registers for unrecognized hosts. It's there because some hosts refuse an embed they can't attribute to a page: YouTube answers "Video unavailable — error 153" when the request carries no usable `Referer`, which is exactly what a page-wide `Referrer-Policy: no-referrer` header or `<meta name="referrer">` produces. Only the origin is sent cross-origin (`https://example.com/`), never the path.
+
+Setting `referrerpolicy` in your own `iframeAttrs` overrides the baseline. Do that only when you know the host's requirement — either direction, stricter or looser, is a way to break an embed that currently works.
 
 ### Adding a language
 
@@ -213,7 +277,17 @@ easyCookieConsent({
 });
 ```
 
-Both hooks fire at the same trigger — the visitor opts in via the modal, `optInAll()` is called, or a prior opt-in is restored on boot — and both fire at most once per controller instance. Per-provider "remember this embed" ticks don't fire them; only an explicit global opt-in does.
+Both hooks fire when the visitor opts in via the modal, when `optInAll()` is called, or when a prior opt-in is restored on boot, and both fire at most once per controller instance.
+
+They differ in what *else* releases them. `onConsent` is a global-only callback: the plugin can't know which third parties are inside it, so a per-provider remember-tick never fires it. `googleFonts` does have a named third party behind it — the built-in `googlefonts` provider — so it also loads on that provider's own key:
+
+```js
+consent.optIn('googlefonts');   // releases the fonts, nothing else
+consent.hasConsent('googlefonts');
+consent.gate(el, { provider: 'googlefonts', onLoad: … });   // a "load web fonts" gate
+```
+
+That's the only built-in provider with no iframe behind it. It exists so a visitor can say yes to fonts without saying yes to every embed, and so the fonts show up in `reset()` and in the consent state under a name rather than as an anonymous side effect of the global yes.
 
 ### The catch: static `<link>` / `@import` still leaks
 
@@ -225,6 +299,8 @@ Adopting `googleFonts` therefore means two changes:
 2. **Add** the same URL to `googleFonts` so it loads via JS, only after consent.
 
 Visitors who haven't yet opted in see the page in your CSS `font-family` fallback (the next family in the stack — Helvetica, system-ui, whatever). After opt-in, the Google Fonts stylesheet swaps in and the page repaints. If that fallback flash is unacceptable, self-host the fonts instead — the plugin can't square that circle for you.
+
+The policy half of the same move: fonts released on consent belong in your privacy policy on the same basis as the embeds — see [Legal basis](#legal-basis). Self-hosting removes the request and the disclosure together.
 
 ### Checking consent from outside
 
@@ -281,6 +357,7 @@ What you handle:
 - Constructing whatever DOM/state/players belong inside `container` once consent is granted. `gate()` clears the container right before calling `onLoad`, so you're free to write into it without worrying about leftover placeholder nodes.
 - Sizing the container itself. The placeholder body fills the container's height; if the container has no defined height, the body collapses. Most callers already have an enclosing slot doing this (a `<dialog>`, a fixed-aspect-ratio wrapper).
 - Re-rendering on subsequent opens. `gate()` is idempotent — call it again on the same container on the next button click and it'll go straight to `onLoad` because consent is now remembered.
+- The referrer policy. The `referrerpolicy="strict-origin-when-cross-origin"` baseline (see [Adding a provider](#adding-a-provider)) covers iframes *the plugin* builds; a gated integration builds its own. If your page sets a restrictive `Referrer-Policy` header or `<meta name="referrer">`, set `referrerpolicy` on the element yourself — with the YouTube IFrame API, that's the `host`/`origin` player param.
 
 The `provider` id you pass scopes the consent key. Built-in ids (`youtube`, `vimeo`, `gmaps`, …) share state with their declarative counterparts — a visitor who clicked "remember YouTube" on a `<div class="consent-embed" data-provider="youtube">` placeholder elsewhere on the site won't see the prompt again here. Custom ids (anything not in the provider registry) are accepted and get a minimal fallback label; useful when you want a private consent scope for a non-iframe integration.
 
@@ -372,6 +449,8 @@ window.consent = easyCookieConsent({ /* options */ });
 ```
 
 Or hook a regular event listener — the controller is just an object.
+
+This link is what discharges the withdrawal obligation, **Art. 7 (3) GDPR** — see [Legal basis](#legal-basis). Put it where the visitor will go looking for it: the page `privacyHref` points to.
 
 ## Why this exists
 
