@@ -27,7 +27,10 @@ CI's only job is a parse-and-metadata smoke test (no test suite exists):
 node --check index.js                                            # parse the module
 node -e "JSON.parse(require('fs').readFileSync('package.json'))"  # validate package.json
 head -n 1 index.js | grep -q '^/\*!'                              # preserve banner intact
+node scripts/check-versions.mjs                                   # banner + README CDN pins match package.json
 ```
+
+`scripts/` is the only non-shipped code in the repo — `package.json`'s `files` allowlist keeps it out of the npm tarball, so the single-file property holds.
 
 Real verification is manual against `example.html` in a fresh browser (private window for fresh `localStorage`), confirming: modal shows first visit → "Allow all" swaps embeds → reload skips modal; "Not now" closes without persisting → reload re-shows; per-embed "remember" tick persists for that provider only. Spot-check in a non-Chromium browser — mobile Safari catches private-mode storage edge cases.
 

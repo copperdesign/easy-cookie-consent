@@ -74,6 +74,12 @@ jobs:
             exit 1
           fi
 
+      # The banner and the README's pinned CDN URLs have to move with the
+      # version too. Publishing a tarball whose own README tells people to
+      # install the previous release is the failure this blocks.
+      - name: banner and README pins match package.json
+        run: node scripts/check-versions.mjs
+
       - name: publish
         run: npm publish
         env:
