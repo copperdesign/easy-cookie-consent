@@ -89,6 +89,15 @@ const DEFAULT_OPTIONS  = {
 
   fontStack: '"Helvetica Neue", Helvetica, Arial, sans-serif',
 
+  // `box-shadow` of the modal card, interpolated verbatim like fontStack.
+  // An option rather than "override it in your own CSS" because hosts with
+  // a flat / no-shadow identity need it gone, and a host rule would have
+  // to out-rank the injected one (appended last in <head>, so equal
+  // specificity loses) — and some hosts forbid writing `box-shadow` in
+  // their own CSS at all. Pass "none" to remove it. Not validated: a bad
+  // value makes the browser drop the declaration, which is the host's call.
+  modalShadow: "0 12px 40px rgba(0,0,0,0.18)",
+
   // Generic deferred-load callback. Fires at most once per controller
   // instance, the moment global consent becomes true — either when the
   // visitor clicks the modal's primary opt-in button, when optInAll() is
@@ -758,7 +767,7 @@ export default function easyCookieConsent(userOptions = {}) {
         max-width: 440px; width: 100%;
         padding: 2.25rem 2rem 1.75rem;
         box-sizing: border-box;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+        box-shadow: ${opts.modalShadow};
         border: 1px solid ${c.border};
         border-radius: 28px;
       }

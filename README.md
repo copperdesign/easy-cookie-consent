@@ -190,6 +190,7 @@ Returns a controller object:
 | `colors` | (off-black / off-white palette) | Object of color tokens. See below — pass any subset; missing keys keep their default. |
 | `embedHeights` | `{ default: 300, soundcloud: 100, gmaps: 470 }` | Per-provider placeholder heights in px. Matching the iframe avoids reflow on click. Pass any subset; add `<provider>: <px>` for any new provider you register. |
 | `fontStack` | `'"Helvetica Neue", Helvetica, Arial, sans-serif'` | CSS `font-family` applied to both surfaces. Override for a typographic match with your host page. |
+| `modalShadow` | `'0 12px 40px rgba(0,0,0,0.18)'` | CSS `box-shadow` of the modal card, passed through as-is. Set `'none'` to remove it for a flat / no-shadow host — no CSS override needed. |
 | `onConsent` | `null` | Callback fired once when global consent becomes true — modal opt-in click, `optInAll()` call, or boot-time restoration of a prior opt-in. Use for analytics, embedded forms, calendar feeds, anything that would transmit visitor data on load. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
 | `googleFonts` | `null` | A single Google Fonts stylesheet URL, or an array of URLs. After consent, the plugin injects each as `<link rel="stylesheet">` and a single preconnect to `fonts.gstatic.com`. Released by global consent *or* by the `googlefonts` provider's own key. See [Deferred loads](#deferred-loads-onconsent--googlefonts). |
 | `providers` | (11 built-ins — see below) | Map of provider definitions. Pass entries to add or override. See below. |
@@ -468,7 +469,7 @@ The attribute name is configurable via `noPromptAttribute`. Per-embed gates stil
 | `.consent-embed--<provider>` | Provider-specific. Use for per-provider sizing or styling. |
 | `.consent-embed--loaded` | Added once the iframe has swapped in — or, for `gate()`, once the host page's `onLoad` has been called. Use to strip placeholder framing in custom themes. |
 | `.consent-embed--gated` | Added by `gate()` to the host container. Drops the default fixed height so the placeholder fills whatever box the host gave it. |
-| `.consent-modal__backdrop` / `.consent-modal__card` | The modal. Override in your own CSS for stronger restyling than `colors` allows. |
+| `.consent-modal__backdrop` / `.consent-modal__card` | The modal. Override in your own CSS for stronger restyling than `colors` and `modalShadow` allow. |
 
 The injected `<style>` carries `data-easy-cookie-consent` — handy if you want to query it from a debug console or remove it manually.
 
